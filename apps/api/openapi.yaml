@@ -1,0 +1,444 @@
+openapi: 3.0.3
+info:
+  title: SAGE Agent Tools API
+  version: 1.1.0
+  description: Persistent semantic memory and task action management service for SAGE AI agents.
+servers:
+  - url: https://xml-our-sees-wind.trycloudflare.com
+    description: SAGE Live Tunnel API
+paths:
+  /memory:
+    post:
+      operationId: save_memory
+      summary: Save a new memory
+      description: Save useful persistent information about the user (preferences, facts, goals, commitments, decisions, tasks, events).
+      security:
+        - SageToolKey: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - userId
+                - type
+                - content
+              properties:
+                userId:
+                  type: string
+                  description: The unique identifier of the user.
+                  example: demo-user
+                type:
+                  type: string
+                  enum:
+                    - fact
+                    - preference
+                    - goal
+                    - commitment
+                    - task
+                    - event
+                    - decision
+                    - conversation
+                    - document_fact
+                    - action_result
+                  description: Type of memory being stored.
+                  example: preference
+                content:
+                  type: string
+                  description: The text content of the memory.
+                  example: I prefer studying at night.
+                importance:
+                  type: number
+                  minimum: 0
+                  maximum: 1
+                  default: 0.5
+                  description: Importance rating between 0 and 1.
+                source:
+                  type: string
+                  enum:
+                    - omi
+                    - user
+                    - agent
+                    - document
+                    - tool
+                  default: agent
+                  description: Origin of the memory.
+                metadata:
+                  type: object
+                  additionalProperties: true
+                  description: Optional key-value metadata.
+      responses:
+        '201':
+          description: Memory successfully created and persisted.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  memory:
+                    $ref: '#/components/schemas/SageMemory'
+        '400':
+          description: Invalid memory input.
+        '401':
+          description: Unauthorized. Invalid or missing x-sage-tool-key.
+
+  /memory/search:
+    get:
+      operationId: search_memory
+      summary: Search memories
+      description: Search the user's persistent memories using semantic similarity. Use this when answering questions that may depend on previously stored user context.
+      security:
+        - SageToolKey: []
+      parameters:
+        - name: userId
+          in: query
+          required: true
+          schema:
+            type: string
+          description: The unique identifier of the user.
+          example: demo-user
+        - name: q
+          in: query
+          required: true
+          schema:
+            type: string
+          description: Natural language query to search memories.
+          example: When do I like to study?
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 20
+            default: 5
+          description: Maximum number of memories to return.
+      responses:
+        '200':
+          description: Relevant memories ordered by semantic similarity.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  results:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/MemorySearchResult'
+        '400':
+          description: Missing userId or query parameter.
+        '401':
+          description: Unauthorized. Invalid or missing x-sage-tool-key.
+
+  /memory/{id}:
+    delete:
+      operationId: forget_memory
+      summary: Forget a stored memory
+      description: Remove a specific stored memory when the user explicitly asks to forget it.
+      security:
+        - SageToolKey: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: The unique ID of the memory to remove.
+        - name: userId
+          in: query
+          required: true
+          schema:
+            type: string
+          description: The unique identifier of the user for ownership verification.
+      responses:
+        '200':
+          description: Memory successfully deleted.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  message:
+                    type: string
+        '400':
+          description: Missing id or userId.
+        '401':
+          description: Unauthorized. Invalid or missing x-sage-tool-key.
+
+  /tasks:
+    post:
+      operationId: create_task
+      summary: Create a persistent task
+      description: Create a persistent task for the current user. Use this when the user explicitly asks SAGE to create or add a task.
+      security:
+        - SageToolKey: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - userId
+                - title
+              properties:
+                userId:
+                  type: string
+                  description: The unique identifier of the user.
+                  example: demo-user
+                title:
+                  type: string
+                  description: Short, actionable title of the task.
+                  example: Finish DBMS assignment
+                description:
+                  type: string
+                  description: Optional detailed description of the task.
+                dueAt:
+                  type: string
+                  description: Due date or time expression.
+                  example: tomorrow
+                metadata:
+                  type: object
+                  additionalProperties: true
+      responses:
+        '201':
+          description: Task successfully created.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  task:
+                    $ref: '#/components/schemas/SageTask'
+        '400':
+          description: Invalid task input.
+        '401':
+          description: Unauthorized. Invalid or missing x-sage-tool-key.
+
+    get:
+      operationId: list_tasks
+      summary: List user tasks
+      description: List the current user's tasks. Use this when the user asks what tasks they have or what remains to be done.
+      security:
+        - SageToolKey: []
+      parameters:
+        - name: userId
+          in: query
+          required: true
+          schema:
+            type: string
+          description: The unique identifier of the user.
+          example: demo-user
+        - name: status
+          in: query
+          required: false
+          schema:
+            type: string
+            enum:
+              - pending
+              - completed
+              - cancelled
+          description: Filter tasks by status.
+      responses:
+        '200':
+          description: List of tasks for the user.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  tasks:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/SageTask'
+        '400':
+          description: Missing userId parameter.
+        '401':
+          description: Unauthorized. Invalid or missing x-sage-tool-key.
+
+  /tasks/{id}/complete:
+    post:
+      operationId: complete_task
+      summary: Mark task as completed
+      description: Mark an existing task as completed. Search for the matching task before calling this operation if the task ID is unknown.
+      security:
+        - SageToolKey: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Unique ID of the task to complete.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - userId
+              properties:
+                userId:
+                  type: string
+                  description: The unique identifier of the user.
+                  example: demo-user
+      responses:
+        '200':
+          description: Task successfully marked as completed.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  task:
+                    $ref: '#/components/schemas/SageTask'
+        '404':
+          description: Task not found or unauthorized.
+        '401':
+          description: Unauthorized. Invalid or missing x-sage-tool-key.
+
+  /tasks/{id}/cancel:
+    post:
+      operationId: cancel_task
+      summary: Cancel a task
+      description: Cancel a task. This is a destructive action and requires explicit user confirmation through SAGE's confirmation policy.
+      security:
+        - SageToolKey: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Unique ID of the task to cancel.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - userId
+              properties:
+                userId:
+                  type: string
+                  description: The unique identifier of the user.
+                  example: demo-user
+      responses:
+        '200':
+          description: Task successfully marked as cancelled.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  task:
+                    $ref: '#/components/schemas/SageTask'
+        '404':
+          description: Task not found or unauthorized.
+        '401':
+          description: Unauthorized. Invalid or missing x-sage-tool-key.
+
+components:
+  securitySchemes:
+    SageToolKey:
+      type: apiKey
+      in: header
+      name: x-sage-tool-key
+  schemas:
+    SageMemory:
+      type: object
+      required:
+        - id
+        - userId
+        - type
+        - content
+        - importance
+        - source
+        - createdAt
+      properties:
+        id:
+          type: string
+          format: uuid
+        userId:
+          type: string
+        type:
+          type: string
+        content:
+          type: string
+        importance:
+          type: number
+        source:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        metadata:
+          type: object
+          additionalProperties: true
+
+    MemorySearchResult:
+      type: object
+      required:
+        - score
+        - memory
+      properties:
+        score:
+          type: number
+          description: Semantic similarity score.
+          example: 0.785
+        memory:
+          $ref: '#/components/schemas/SageMemory'
+
+    SageTask:
+      type: object
+      required:
+        - id
+        - userId
+        - title
+        - status
+        - createdAt
+      properties:
+        id:
+          type: string
+          format: uuid
+        userId:
+          type: string
+        title:
+          type: string
+        description:
+          type: string
+        status:
+          type: string
+          enum:
+            - pending
+            - completed
+            - cancelled
+        dueAt:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        completedAt:
+          type: string
+          format: date-time
+        metadata:
+          type: object
+          additionalProperties: true
