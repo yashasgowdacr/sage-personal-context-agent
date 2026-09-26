@@ -34,7 +34,10 @@ export const App: React.FC = () => {
       const data = await sageApi.fetchDemoContext();
       setMemories(data.memories);
       setTasks(data.tasks);
-      setRecentActivity(data.recentActions);
+      const formattedActions = (data.recentActions || []).map((a: any) =>
+        typeof a === 'string' ? a : a?.action || JSON.stringify(a)
+      );
+      setRecentActivity(formattedActions);
     } catch (err) {
       console.warn('Failed to refresh demo context:', err);
     } finally {

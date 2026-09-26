@@ -108,10 +108,14 @@ export const ContextPanel: React.FC<ContextPanelProps> = ({
             <div className="empty-state-card">No verified actions logged yet.</div>
           ) : (
             <ul className="sidebar-list">
-              {recentActivity.slice(0, 6).map((activity, idx) => (
+              {recentActivity.slice(0, 6).map((activity: any, idx) => (
                 <li key={idx} className="sidebar-card activity-item-card">
                   <span className="activity-dot" />
-                  <span className="activity-label">{activity}</span>
+                  <span className="activity-label">
+                    {typeof activity === 'string'
+                      ? activity
+                      : activity?.action || JSON.stringify(activity)}
+                  </span>
                 </li>
               ))}
             </ul>
