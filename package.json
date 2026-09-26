@@ -1,0 +1,12 @@
+{
+  "name": "sage-root",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build:web": "npm --prefix apps/web install && npm --prefix apps/web run build",
+    "build:api": "npm --prefix apps/api install && npm --prefix apps/api run build",
+    "build": "npm --prefix apps/web install && npm --prefix apps/web run build && npm --prefix apps/api install && npm --prefix apps/api run build",
+    "start": "cd apps/api && npm start"
+  }
+}
