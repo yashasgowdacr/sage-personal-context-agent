@@ -1,227 +1,293 @@
-# SAGE
+# SAGE — Personal Context & Action Agent
 
-Listen. Remember. Reason. Act.
+> **"Listen. Remember. Reason. Act."**
 
-Personal Context & Action Agent powered by Omi Wearable, Lyzr AI, Qdrant Vector Memory, and FastEmbed.
+An autonomous Personal Context & Action Agent combining ambient wearable voice (Omi) and web voice with persistent semantic vector memory (Qdrant), high-speed local embeddings (FastEmbed), cognitive reasoning & tool contracts (Lyzr AI), and deterministic safety verification.
+
+---
+
+## Table of Contents
+1. [Overview](#overview)
+2. [Problem](#problem)
+3. [Solution](#solution)
+4. [Core Features](#core-features)
+5. [System Architecture](#system-architecture)
+6. [Architecture Diagram](#architecture-diagram)
+7. [Technology Stack](#technology-stack)
+8. [Omi Integration](#omi-integration)
+9. [Qdrant Vector Memory Integration](#qdrant-vector-memory-integration)
+10. [FastEmbed Microservice Integration](#fastembed-microservice-integration)
+11. [Lyzr Agent & Tool Integration](#lyzr-agent--tool-integration)
+12. [Memory Architecture](#memory-architecture)
+13. [Task & Action Architecture](#task--action-architecture)
+14. [Safety & Confirmation Gates](#safety--confirmation-gates)
+15. [User-Facing Command Center](#user-facing-command-center)
+16. [The Agentic Loop Explained](#the-agentic-loop-explained)
+17. [Local Setup](#local-setup)
+18. [Environment Variables](#environment-variables)
+19. [How to Start Services](#how-to-start-services)
+20. [Browser Command Center URL](#browser-command-center-url)
+21. [Example Commands & Prompts](#example-commands--prompts)
+22. [Testing & Verification](#testing--verification)
+23. [4-to-5 Minute Hackathon Demo Workflow](#4-to-5-minute-hackathon-demo-workflow)
+24. [Known Non-Blocking Limitations](#known-non-blocking-limitations)
+25. [Future Scope](#future-scope)
+
+---
+
+## Overview
+
+Most AI assistants and chat interfaces treat every session as a blank slate. They forget who you are, what you prefer, what tasks you have pending, and how your habits should inform your actions.
+
+**SAGE** changes this fundamentally. By maintaining a continuous semantic memory of user preferences and active tasks, SAGE synthesizes multi-entity context before choosing and verifying every tool execution. When you speak to SAGE, it doesn't just return generic text—it grounds its reasoning in your real life, executes verified state transitions, and reports verifiable outcomes.
 
 ---
 
 ## Problem
 
-Modern voice assistants and LLM chat interfaces suffer from three critical shortcomings:
+Modern voice assistants and generic chatbots suffer from three fundamental architectural flaws:
 
-1. **Context Blindness:** They lack persistent, longitudinal memory of personal user preferences, habits, and schedules. Every interaction begins from a blank slate.
-2. **Action Disconnect:** They can generate fluent conversational text, but cannot execute reliable, verified actions against real-world systems, often hallucinating that an action succeeded when nothing occurred.
-3. **Passive Retrieval:** When assistants do search memory, they regurgitate raw facts rather than synthesizing multi-entity context (preferences + active tasks + recent history) into personalized decisions.
+1. **Context Blindness**: Every session starts with zero recollection of user habits, preferences, and deadlines.
+2. **Action Disconnect & Hallucination**: LLMs generate plausible text claiming tasks were created, emails were sent, or items were scheduled, when nothing actually occurred.
+3. **Passive Context Regurgitation**: Standard RAG simply dumps retrieved chunks into prompt templates without verifying whether the retrieved items are genuinely relevant to the user's immediate intent.
 
 ---
 
 ## Solution
 
-SAGE is an autonomous Personal Context & Action Agent that combines continuous ambient voice from wearable hardware (Omi) with persistent semantic memory (Qdrant), local fast embeddings (FastEmbed), and agent reasoning (Lyzr).
-
-Instead of passively answering:
-> *"You have 1 pending task."*
-
-SAGE performs Multi-Entity Context Fusion and reasons:
-> *"Since you prefer studying at night, tonight would be a good time to work on your DBMS assignment."*
-
-SAGE guarantees **execution integrity**: every action is selected, executed through strict contracts, and verified before claiming success.
+SAGE introduces an active, closed-loop agentic architecture:
+- **Ambient & Browser Voice**: Captures spoken commands seamlessly via Omi Wearable or Browser Web Speech API.
+- **Context Relevance Gate**: Enforces the principle that **Retrieved Context $\ne$ Relevant Context**, pruning cross-domain memory leakage before reasoning occurs.
+- **Multi-Entity Context Fusion**: Synthesizes preferences, active tasks, and recent action history into a compact `SageContext`.
+- **Verified Action Execution**: Requires strict database verification post-execution. If a database mutation is not confirmed, SAGE reports failure rather than hallucinating success.
+- **Transparent Command Center UI**: Real-time HUD displaying memory counters, pending task state, action verification pills, and context usage badges.
 
 ---
 
-## Architecture
+## Core Features
+
+- 🧠 **Semantic Vector Memory**: Long-term preference recall powered by Qdrant and FastEmbed (`BAAI/bge-small-en-v1.5`).
+- 🎯 **Context Relevance Gate**: Intelligently suppresses unrelated tasks and habits when addressing cross-domain queries (e.g. appointment scheduling).
+- 📋 **Structured Task Lifecycle**: Natural language creation, listing, semantic matching, and verified completion of tasks.
+- 🔒 **Defense-in-Depth Safety Gate**: Destructive actions (e.g., cancelling tasks, account deletion) halt for user confirmation before execution.
+- 🎙️ **Multi-Modal Voice Ingestion**: Supports real-time webhook streaming from Omi Wearable as well as deduplicated browser microphone speech.
+- 🛡️ **Zero Hallucinated Actions**: Success is only reported when post-execution verification checks confirm persistent database mutations.
+- 💻 **Real-Time Command Center**: Modern, responsive dashboard with active context badges, activity telemetry, and manual/voice input.
+
+---
+
+## System Architecture
 
 ```text
-                    ┌──────────┐
-                    │   OMI    │
-                    └────┬─────┘
-                         │
-                         ▼
-                ┌──────────────────┐
-                │ SAGE Orchestrator│
-                └───────┬──────────┘
-                        │
-               ┌────────▼─────────┐
-               │  Context Fusion  │
-               └────────┬─────────┘
-                        │
-            ┌───────────┼───────────┐
-            ▼           ▼           ▼
-         Qdrant       Tasks      Actions
-            │           │           │
-            └───────────┼───────────┘
-                        ▼
-                    ┌───────┐
-                    │ Lyzr  │
-                    └───┬───┘
-                        │
-                        ▼
-                     Tools
-                        │
-                        ▼
-                   Verification
-                        │
-                        ▼
-                     Qdrant
-                        │
-                        ▼
-                       OMI
+OMI / Browser Voice
+        │
+        ▼
+SAGE API
+        │
+        ▼
+Orchestrator
+        │
+        ├───────────────┐
+        ▼               ▼
+Context Builder      Reasoner
+        │               │
+        ▼               ▼
+Qdrant Memory      Action Registry
+FastEmbed              │
+        │               ├── Memory Tools
+        │               └── Task Tools
+        │
+        ▼
+Verification
+        │
+        ▼
+Memory / Task Update
+        │
+        ▼
+SAGE Response
+        │
+        ▼
+Command Center UI
 ```
 
 ---
 
-## How It Works
+## Architecture Diagram
 
-The complete SAGE intelligence lifecycle follows an 8-stage state machine:
+The execution path moves through 8 well-defined states:
 
 ```text
-Understand → Retrieve Context → Context Fusion → Reason → Select Tools → Execute → Verify → Update Memory → Respond
+[Input] → [Understanding] → [Memory Retrieval & Relevance Gate] → [Context Fusion]
+              │
+              ▼
+         [Reasoner (Lyzr / Local Fallback)]
+              │
+              ├── Direct Answer ────────────────────────────┐
+              │                                             │
+              ▼                                             ▼
+       [Tool Selection]                              [State Update]
+              │                                             │
+              ▼                                             ▼
+      [Action Execution]                             [Response Ready]
+              │                                             │
+              ▼                                             ▼
+       [Verification] ──(Pass/Fail)────────────────── [Command Center HUD]
 ```
-
-1. **Listen:** Ambient audio segments are captured by the Omi wearable and ingested via the real-time SAGE Omi webhook.
-2. **Remember:** Facts, observations, and personal preferences are extracted, vectorized into 384-dimensional dense vectors using FastEmbed, and persisted in Qdrant.
-3. **Retrieve:** When a query arrives, SAGE performs vector semantic search with an empirical relevance threshold ($\ge 0.70$) to filter out irrelevant memories.
-4. **Context Fusion:** SAGE combines relevant memories, active pending tasks, and recent action history into a compact `SageContext` without exposing raw reasoning traces or chain-of-thought tokens.
-5. **Reason:** The Lyzr Agent evaluates the fused context and selects the appropriate tool or conversational strategy.
-6. **Act:** SAGE invokes strongly typed tools (`create_task`, `complete_task`, `save_memory`, etc.).
-7. **Verify:** Every tool execution undergoes validation against persistence stores. If verification fails, SAGE reports failure rather than hallucinating success.
-8. **Feedback:** Verified results are reflected back to Omi audio playback with explainable execution events for UI transparency.
 
 ---
 
 ## Technology Stack
 
-| Layer | Component | Description |
+| Layer | Technology | Role |
 | :--- | :--- | :--- |
-| **Voice Interface** | [Omi Wearable](https://github.com/BasedHardware/Omi) | Captures speech transcripts, speaker diarization, and context segments |
-| **Embeddings** | [FastEmbed](https://github.com/qdrant/fastembed) | Local embedding service running `BAAI/bge-small-en-v1.5` (384 dimensions) |
-| **Vector Memory** | [Qdrant](https://qdrant.tech/) | Cloud/Local vector database for semantic recall, structured payload filtering, and user isolation |
-| **Agent Reasoning** | [Lyzr Agent API](https://lyzr.ai/) | Cloud agent reasoning engine with tool orchestration and local fallback reasoner |
-| **Core API & Engine** | Node.js, Fastify, TypeScript | Strict typed orchestrator, state transition logger, action registry, and task service |
+| **Wearable Audio** | [Omi Hardware & Webhook](https://github.com/BasedHardware/Omi) | Ambient voice streaming, transcript ingestion, deduplication |
+| **Vector Engine** | [Qdrant Vector Database](https://qdrant.tech/) | Persistent vector storage, payload filtering, user isolation |
+| **Embeddings** | [FastEmbed](https://github.com/qdrant/fastembed) | Local embedding microservice running `BAAI/bge-small-en-v1.5` (384-dim) |
+| **Agent Reasoning** | [Lyzr Agent Studio](https://lyzr.ai/) | Agent reasoning, tool definition, schema contracts |
+| **Core API** | Node.js, Fastify, TypeScript | State machine orchestrator, Action Registry, Task Service |
+| **Frontend UI** | React, Vite, TypeScript | SAGE Command Center with voice HUD and context telemetry |
+
+---
+
+## Omi Integration
+
+SAGE provides full native support for the **Omi Wearable**:
+- **Webhook Endpoint**: `POST /omi/webhook?uid=:userId` ingests live transcript chunks.
+- **Direct Endpoint**: `POST /omi/input` accepts formatted transcript payloads.
+- **HMAC Authentication**: Validates webhook authenticity using SHA-256 HMAC headers.
+- **Segment Deduplication**: Caches chunk hashes to ignore re-transmitted speech segments.
+- **Source Tagging**: Memories and tasks recorded via Omi are tagged with `source: "omi"` in Qdrant payloads.
+
+---
+
+## Qdrant Vector Memory Integration
+
+Persistent vector storage is handled via Qdrant Cloud or local instances:
+- **Collection Name**: `sage_memories`
+- **Vector Dimension**: `384` (Cosine distance)
+- **User Isolation**: All vector similarity queries and payload scrolls require strict `userId` filter matching to guarantee tenant isolation.
+- **Payload Schema**: Each memory point stores:
+  ```json
+  {
+    "id": "uuid",
+    "userId": "user-123",
+    "content": "I study best at night.",
+    "type": "preference",
+    "source": "omi",
+    "createdAt": "2026-09-26T12:00:00.000Z"
+  }
+  ```
+
+---
+
+## FastEmbed Microservice Integration
+
+Vector embeddings are generated locally using FastEmbed:
+- **Service Port**: `http://127.0.0.1:8000`
+- **Model**: `BAAI/bge-small-en-v1.5`
+- **Prefix Support**: Prepends `"passage: "` for indexing and `"query: "` for retrieval queries.
+- **Self-Hosted & Private**: Runs completely on-device without cloud embedding API dependencies or token fees.
+
+---
+
+## Lyzr Agent & Tool Integration
+
+SAGE integrates with Lyzr AI for tool orchestration and OpenAPI specifications:
+- **Tool Contracts**: OpenAPI 3.0 specification exported at `/openapi.json`.
+- **Integrated Tools**:
+  - `save_memory`: Stores user preferences and facts to Qdrant.
+  - `search_memory`: Semantic vector search over stored memories.
+  - `forget_memory`: Removes specific memories from persistent storage.
+  - `create_task`: Persists structured pending tasks with deadlines.
+  - `list_tasks`: Retrieves active vs. completed tasks.
+  - `complete_task`: Marks tasks as completed after verification.
+  - `cancel_task`: Destructive cancellation (requires confirmation).
+- **Graceful Fallback**: If Lyzr Cloud Studio free-tier inference is exhausted (HTTP 402), SAGE's internal deterministic reasoner activates immediately to ensure 100% demo reliability.
 
 ---
 
 ## Memory Architecture
 
-SAGE memory is organized hierarchically inside Qdrant collection `sage_memories`:
+SAGE categorizes long-term records into explicit types:
+1. **Preferences**: Habits, routines, and constraints (e.g., *"I study best at night."*).
+2. **Facts**: Fixed personal attributes (e.g., *"My preferred IDE is IntelliJ IDEA."*).
+3. **Context**: Ephemeral conversation observations.
+4. **Tasks**: Pending and completed items (`type: "task"`), which are strictly distinguished from personal preferences.
+
+---
+
+## Task & Action Architecture
+
+Tasks are managed by the unified [TaskService](file:///Users/apple/Documents/SAGE/apps/api/src/tasks/service.ts):
+- Persisted in Qdrant with `type: "task"` and `status: "pending" | "completed" | "cancelled"`.
+- Support due dates, natural language titles, and semantic lookup.
+- **Task Reference Rule**: Pending tasks are only injected into context when the user explicitly asks about tasks, refers to a task by name, or requests task planning. Unrelated requests (e.g., booking appointments) suppress task inclusion.
+
+---
+
+## Safety & Confirmation Gates
+
+To eliminate unintended side effects and hallucinations:
+- **Confirmation Required**: Destructive tools (e.g., `cancel_task`, `delete_account`) return a `requiresConfirmation` status. SAGE will not execute the mutation until the user replies with confirmation.
+- **Mandatory Verification**: Every action executor is paired with a verifier. The verifier queries the database to confirm that the state actually changed. If the check fails, the orchestrator returns an error rather than false success.
+- **Confidential Reasoning**: Private model thoughts are kept internal. Only concise, explainable execution milestones (e.g., `✓ Memory saved`, `✓ Task completed`) are sent to the client.
+
+---
+
+## User-Facing Command Center
+
+The web frontend (`apps/web`) provides an intuitive Command Center HUD:
+- **Live HUD Metrics**: Memory counters, active task counters, and connection status.
+- **Context Fusion Badges**: Real-time display showing exactly what stored memory or task informed the response.
+- **Action Verification Pills**: Instant visual confirmation when actions are verified in the database.
+- **Microphone Voice Input**: Browser Web Speech API with real-time speech deduplication.
+- **Responsive Layout**: Designed for presentation on laptops, tablets, and mobile screens.
+
+---
+
+## The Agentic Loop Explained
 
 ```text
-Qdrant Collection: "sage_memories"
-├── User Partition: userId
-│   ├── Type: "preference" (e.g., "I study best at night.")
-│   ├── Type: "fact"       (e.g., "My preferred editor is IntelliJ IDEA.")
-│   ├── Type: "task"       (e.g., "Finish DBMS assignment", status: pending/completed)
-│   └── Type: "context"    (conversation context & observations)
+LISTEN ──► REMEMBER ──► REASON ──► ACT ──► VERIFY
 ```
-
-- **Embedding Model:** `BAAI/bge-small-en-v1.5` with passage/query prefix differentiation.
-- **Empirical Relevance Threshold:** Cosine similarity threshold $\ge 0.70$ prevents context dilution from unrelated memories.
-- **Strict User Isolation:** All vector queries and payload scrolls require matching `userId` metadata filter.
-
----
-
-## Agent Architecture
-
-SAGE employs a decoupled reasoner architecture:
-
-- **Primary Reasoner (`LyzrReasonerAdapter`):** Sends fused, compact context to Lyzr Agent Studio endpoints to drive high-level cognitive tool selection and natural language responses.
-- **Deterministic Reasoner (`StandardReasoner`):** High-reliability rule and pattern engine that parses task creation, temporal deadlines, status transitions, and context fusion recommendations. Serves as instantaneous local fallback when cloud inference is offline.
-- **Action Registry (`ActionRegistry`):** Sandboxed registry of typed tool executors and verifiers (`save_memory`, `search_memory`, `forget_memory`, `create_task`, `list_tasks`, `complete_task`, `cancel_task`).
+1. **Listen**: User speaks or types an intent.
+2. **Remember**: Memory service fetches candidates; the Relevance Gate filters out cross-domain noise.
+3. **Reason**: The reasoner evaluates the fused context (`SageContext`) and selects tools.
+4. **Act**: The strongly typed action executor runs against local or remote services.
+5. **Verify**: The verifier confirms database state change.
+6. **Respond**: A concise, helpful answer is delivered to the user with transparent execution milestones.
 
 ---
 
-## Safety
-
-SAGE enforces defense-in-depth safety principles:
-
-1. **No Hallucinated Actions:** Never report an action succeeded unless its executor returns `success: true` and the post-execution verification function verifies database state change.
-2. **Destructive Action Safety Gate:** Sensitive operations (e.g., `cancel_task`, `delete_account`) require explicit confirmation tokens before execution.
-3. **No Chain-of-Thought Leakage:** Private model thoughts and internal scratchpads are kept confidential. UI only receives explainable execution milestones.
-4. **Credential Redaction:** The orchestration logger automatically scrubs secrets, keys, and tokens from all stdout traces.
-
----
-
-## Demo
-
-Experience SAGE's 5-turn intelligence loop:
-
-```text
-Turn 1: User: "Remember that I study best at night."
-        SAGE: "I've remembered that for you."
-        [Ingests preference to Qdrant via FastEmbed]
-
-Turn 2: User: "Add a task to finish my DBMS assignment tomorrow."
-        SAGE: "I've added 'Finish my DBMS assignment' to your tasks for tomorrow."
-        [Creates structured task, records in ActionTracker]
-
-Turn 3: User: "What should I work on tonight?"
-        SAGE: "Since you prefer studying at night, tonight would be a good time to work on your DBMS assignment."
-        [Multi-entity context fusion: preference + pending task + request]
-
-Turn 4: User: "I finished my DBMS assignment."
-        SAGE: "Marked your Finish my DBMS assignment as completed."
-        [Executes complete_task, verifies in Qdrant store]
-
-Turn 5: User: "What tasks do I have left?"
-        SAGE: "You have no pending tasks."
-        [Dynamic zero-hallucination verification]
-```
-
-### Visual Execution Timeline Box
-
-```text
-┌──────────────────────────────────────────────────────────┐
-│ SAGE                                                     │
-│ Turn 3: Multi-Entity Context Fusion                      │
-├──────────────────────────────────────────────────────────┤
-│ 🎙 Voice received                                         │
-│ ✓ Understanding request                                  │
-│ ✓ Memory matched                                         │
-│ ✓ Pending task found                                     │
-│ 🤖 Lyzr reasoning                                         │
-│ 🔧 Synthesize response                                    │
-│ 🔊 Response ready                                         │
-└──────────────────────────────────────────────────────────┘
-```
-
----
-
-## Installation
+## Local Setup
 
 ### Prerequisites
-
 - Node.js $\ge 18$
-- Python $\ge 3.10$ (for FastEmbed microservice)
-- Qdrant Cloud cluster or local Docker container
+- Python $\ge 3.10$
+- Qdrant Cloud cluster or local Docker container (`docker run -p 6333:6333 qdrant/qdrant`)
 
-### 1. Clone Repository
-
+### 1. Clone the Repository
 ```bash
-git clone https://github.com/your-username/SAGE.git
-cd SAGE
+git clone https://github.com/yashasgowdacr/sage-personal-context-agent.git
+cd sage-personal-context-agent
 ```
 
-### 2. Setup Embedding Service
-
+### 2. Setup Embedding Microservice
 ```bash
 cd services/embeddings
 python3 -m venv .venv
 source .venv/bin/activate
-pip install fastapi uvicorn fastembed pydantic
-python -m uvicorn server:app --host 127.0.0.1 --port 8000
+pip install -r requirements.txt
 ```
 
-### 3. Setup SAGE API
-
+### 3. Setup Backend API
 ```bash
 cd ../../apps/api
 npm install
 cp ../../.env.example .env
 ```
 
-### 4. Setup SAGE Web Application
-
+### 4. Setup Frontend Web App
 ```bash
 cd ../web
 npm install
@@ -231,7 +297,7 @@ npm install
 
 ## Environment Variables
 
-Edit `apps/api/.env`:
+Configure `apps/api/.env`:
 
 ```env
 NODE_ENV=development
@@ -242,70 +308,70 @@ HOST=0.0.0.0
 QDRANT_URL=https://your-cluster.qdrant.io
 QDRANT_API_KEY=your-qdrant-api-key
 
-# Lyzr Agent
+# Lyzr Agent Studio
 LYZR_API_KEY=your-lyzr-api-key
 LYZR_AGENT_ID=your-lyzr-agent-id
 LYZR_AGENT_URL=https://agent-prod.studio.lyzr.ai/v3/inference/chat/
 
-# Local FastEmbed Service
+# Local FastEmbed Microservice
 EMBEDDING_SERVICE_URL=http://127.0.0.1:8000
 
-# SAGE Tool Authentication Key
+# SAGE Internal Tool Security Key
 SAGE_TOOL_API_KEY=your-secure-internal-tool-key
 
-# Demo Mode (Predictable demo state, deterministic test user)
+# Demo Mode (Predictable deterministic demo user state)
 SAGE_DEMO_MODE=true
 ```
 
 ---
 
-## Running Locally
+## How to Start Services
 
-### Terminal 1: Start Embedding Microservice (Port 8000)
-
+### Terminal 1: FastEmbed Microservice (Port 8000)
 ```bash
 cd services/embeddings
 source .venv/bin/activate
 python -m uvicorn server:app --host 127.0.0.1 --port 8000
 ```
 
-### Terminal 2: Start SAGE API Dev Server (Port 3001)
-
+### Terminal 2: SAGE API Backend (Port 3001)
 ```bash
 cd apps/api
 npm run dev
 ```
 
-### Terminal 3: Start SAGE Web Interface (Port 3000)
-
+### Terminal 3: SAGE Command Center Web App (Port 3000)
 ```bash
 cd apps/web
 npm run dev
 ```
 
-Open your browser at **`http://localhost:3000`** to chat with SAGE directly.
+---
+
+## Browser Command Center URL
+
+Open your web browser at:
+👉 **`http://localhost:3000`**
 
 ---
 
-## API Endpoints
+## Example Commands & Prompts
 
-| Method | Endpoint | Description |
+| User Intent | Prompt Example | Expected SAGE Behavior |
 | :--- | :--- | :--- |
-| `GET` | `/health` | System health and uptime status |
-| `POST` | `/omi/webhook?uid=:userId` | Omi wearable transcript ingestion endpoint |
-| `POST` | `/omi/input` | Normalized direct transcript endpoint |
-| `POST` | `/orchestrator/run` | Direct orchestration execution (`x-sage-tool-key` required) |
-| `POST` | `/api/tasks` | Create task endpoint |
-| `GET` | `/api/tasks` | List tasks endpoint (supports status filter) |
-| `POST` | `/demo/reset` | Resets demo user state (available when `SAGE_DEMO_MODE=true`) |
-| `GET` | `/demo/status` | Demo mode configuration status |
-| `GET` | `/openapi.json` | Complete OpenAPI 3.0 tool contract specification |
+| **Store Preference** | *"Remember that I study best at night."* | Persists preference to Qdrant vector store. |
+| **Create Task** | *"Create a task to finish my DBMS assignment tomorrow."* | Parses title & deadline, creates pending task. |
+| **Context Fusion** | *"What should I work on tonight?"* | Synthesizes study habit + DBMS task into advice. |
+| **Task Completion** | *"I finished my DBMS assignment."* | Verifies and marks task as completed. |
+| **State Listing** | *"What tasks do I have left?"* | Confirms 0 pending tasks remain without hallucination. |
+| **Memory Recall** | *"What do you remember about me?"* | Retrieves stored night study preference. |
+| **Cross-Domain Query**| *"Schedule an appointment with doctor"* | Asks for appointment date & time; excludes DBMS task. |
 
 ---
 
-## Testing
+## Testing & Verification
 
-Run the full end-to-end regression and verification suite:
+Run the full automated test suite:
 
 ```bash
 cd apps/api
@@ -313,35 +379,77 @@ cd apps/api
 # 1. Typecheck
 npx tsc --noEmit
 
-# 2. Context Fusion Verification
+# 2. Context Fusion Suite
 npx tsx src/context/context.test.ts
 
-# 3. Memory Tools
+# 3. Context Relevance & Cross-Domain Regression Suite
+npx tsx src/context/relevance.test.ts
+
+# 4. Memory Tools Verification
 npx tsx src/tools/test-memory-tools.ts
 
-# 4. Task Service Unit Tests
+# 5. Task Service Unit Tests
 npx tsx src/tasks/tasks.test.ts
 
-# 5. Task Tool Contracts
+# 6. Task Tool Verification
 npx tsx src/tools/test-task-tools.ts
 
-# 6. Orchestrator State Machine (14 tests)
+# 7. Orchestrator State Machine Suite (14 tests)
 npx tsx src/orchestrator/orchestrator.test.ts
 
-# 7. Omi Adapter & Webhook Tests (7 tests)
+# 8. Omi Ingestion Suite (7 tests)
 npx tsx src/omi/omi.test.ts
 
-# 8. Lyzr E2E Tool Contracts & Safety Gates
+# 9. Lyzr E2E Tool Contracts
 npx tsx src/agent/test-lyzr-agent-tools.ts
 
-# 9. Final Hackathon Judge Demo (5 turns)
-npx tsx src/omi/demo-final.ts
+# 10. Web Voice Deduplication Suite
+cd ../web
+npx tsx src/components/voice-dedup.test.ts
+
+# 11. Web Production Build
+npm run build
 ```
+
+---
+
+## 4-to-5 Minute Hackathon Demo Workflow
+
+Follow this live demo sequence in the Command Center (`http://localhost:3000`):
+
+1. **Introduction (0:00–0:30)**: Introduce SAGE: *"Instead of treating every conversation as a blank slate, SAGE builds personal context and uses it to act."*
+2. **Teach Personal Preference (0:30–1:15)**:
+   - Type or speak: *"Remember that I study best at night."*
+   - Highlight: Memory card updates in sidebar; execution pill displays `✓ Memory saved`.
+3. **Create Structured Task (1:15–2:00)**:
+   - Type or speak: *"Create a task to finish my DBMS assignment tomorrow."*
+   - Highlight: Task appears in Tasks panel as `PENDING` with `Tomorrow` deadline.
+4. **Context Fusion (2:00–2:45)**:
+   - Ask: *"What should I work on tonight?"*
+   - Highlight: SAGE responds *"Since you prefer studying at night, tonight would be a good time to work on your DBMS assignment."*
+   - Point out the `🧠 CONTEXT USED` badges for Study preference and Pending DBMS task.
+5. **Task Completion & Verification (2:45–3:30)**:
+   - Say: *"I finished my DBMS assignment."*
+   - Show: Task is marked completed and verified in the database.
+   - Ask: *"What tasks do I have left?"* $\rightarrow$ SAGE confirms *"You have no pending tasks."*
+6. **Cross-Domain Relevance Test (3:30–4:15)**:
+   - Ask: *"Schedule an appointment with doctor."*
+   - Highlight: SAGE asks *"I can help with that. What date and time would you like for the appointment?"*
+   - Point out that SAGE **does not mention DBMS** and **does not attach unrelated study habits**.
+7. **Conclusion (4:15–4:45)**: Summarize the Listen $\rightarrow$ Remember $\rightarrow$ Reason $\rightarrow$ Act $\rightarrow$ Verify architecture.
+
+---
+
+## Known Non-Blocking Limitations
+
+1. **Lyzr Cloud Free-Tier Inference Credits (HTTP 402)**: The Lyzr Studio free-tier credits for the test account are exhausted. All OpenAPI tool definitions and contracts remain 100% compliant, and SAGE seamlessly switches to its deterministic local reasoner fallback with zero downtime.
+2. **Local Python FastEmbed Daemon**: Requires running Python uvicorn microservice on port 8000 for local vector embedding generation.
+3. **Action Tracker Ephemerality**: The rolling 10-turn recent action log is stored in-memory in the API process and resets upon server restart (long-term memories and tasks are persistently preserved in Qdrant).
 
 ---
 
 ## Future Scope
 
-1. **Multi-Modal Vision Fusion:** Integrate Omi camera frames with Qdrant multi-vector index to answer queries about physical objects in the user's field of view.
-2. **Proactive Intervention:** Trigger ambient voice reminders when the user's calendar indicates high likelihood of conflict or context switching.
-3. **Federated On-Device Qdrant:** Transition vector storage directly onto local edge hardware for zero-cloud latency and complete privacy guarantees.
+1. **Direct Calendar Integration**: Integration with Google Calendar and CalDAV to schedule verified calendar events upon user confirmation.
+2. **On-Device ONNX Embedding Pipeline**: Embedding generation directly inside Node.js to eliminate external Python daemon dependencies.
+3. **Multi-Modal Vision Understanding**: Ingestion of camera frames from wearable hardware to combine visual scene memory with speech context.
