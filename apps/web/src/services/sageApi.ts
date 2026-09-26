@@ -1,0 +1,136 @@
+import type { OrchestrationApiResponse, HealthStatus, ContextTaskItem } from '../types/sage';
+
+// Default to configured environment variable or fallback to empty string (Vite proxy)
+const API_BASE_URL = (import.meta.env.VITE_SAGE_API_URL || '').replace(/\/+$/, '');
+
+export const DEMO_USER_ID = 'sage-demo-user';
+
+export class SageApiService {
+  private baseUrl: string;
+  private sessionId: string;
+
+  constructor() {
+    this.baseUrl = API_BASE_URL;
+    this.sessionId = `web-session-${Date.now()}`;
+  }
+
+  getSessionId(): string {
+    return this.sessionId;
+  }
+
+  resetSession(): void {
+    this.sessionId = `web-session-${Date.now()}`;
+  }
+
+  /**
+   * Check connection status to SAGE backend
+   */
+  async checkHealth(): Promise<boolean> {
+    try {
+      const res = await fetch(`${this.baseUrl}/health`, {
+        method: 'GET',
+        headers: { Accept: 'application/json' },
+      });
+      if (!res.ok) return false;
+      const data = (await res.json()) as HealthStatus;
+      return data.status === 'ok';
+    } catch {
+      return false;
+    }
+  }
+
+  /**
+   * Send a chat message to SAGE Orchestrator
+   */
+  async sendMessage(
+    message: string,
+    options?: {
+      confirmed?: boolean;
+      confirmationToken?: string;
+    }
+  ): Promise<OrchestrationApiResponse> {
+    const payload = {
+      userId: DEMO_USER_ID,
+      request: message,
+      sessionId: this.sessionId,
+      confirmed: options?.confirmed,
+      confirmationToken: options?.confirmationToken,
+    };
+
+    try {
+      const res = await fetch(`${this.baseUrl}/orchestrator/run`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Accept: 'application/json',
+        },
+        body: JSON.stringify(payload),
+      });
+
+      const data = await res.json().catch(() => null);
+
+      if (!res.ok) {
+        const errorMsg = data?.error || data?.message || `Server returned ${res.status}`;
+        if (res.status === 401) {
+          throw new Error('Unauthorized request. Ensure SAGE_DEMO_MODE=true is enabled.');
+        }
+        if (data?.requiresConfirmation) {
+          return data as OrchestrationApiResponse;
+        }
+        throw new Error(errorMsg);
+      }
+
+      return data as OrchestrationApiResponse;
+    } catch (err: unknown) {
+      const error = err as Error;
+      if (error.message?.includes('Failed to fetch') || error.message?.includes('NetworkError') || error.message?.includes('ECONNREFUSED')) {
+        throw new Error('SAGE is offline. Make sure the SAGE API is running on localhost:3001.');
+      }
+      if (error.message?.includes('memory') || error.message?.includes('embedding') || error.message?.includes('FastEmbed') || error.message?.includes('Qdrant')) {
+        throw new Error("SAGE couldn't access its memory right now. Please try again.");
+      }
+      throw error;
+    }
+  }
+
+  /**
+   * Reset demo memories, tasks, and actions for a clean slate
+   */
+  async resetDemoState(): Promise<{ success: boolean; message?: string }> {
+    try {
+      const res = await fetch(`${this.baseUrl}/demo/reset`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ userId: DEMO_USER_ID }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => null);
+        throw new Error(data?.error || 'Failed to reset demo state');
+      }
+      this.resetSession();
+      return { success: true, message: 'Demo state reset successfully' };
+    } catch (err) {
+      throw new Error(`Failed to reset: ${(err as Error).message}`);
+    }
+  }
+
+  /**
+   * Fetch live pending tasks for the demo user
+   */
+  async fetchTasks(): Promise<ContextTaskItem[]> {
+    try {
+      const res = await fetch(`${this.baseUrl}/tasks?userId=${encodeURIComponent(DEMO_USER_ID)}&status=pending`, {
+        headers: { Accept: 'application/json' },
+      });
+      if (!res.ok) return [];
+      const data = await res.json();
+      return (data.tasks || []) as ContextTaskItem[];
+    } catch {
+      return [];
+    }
+  }
+}
+
+export const sageApi = new SageApiService();

@@ -220,6 +220,13 @@ npm install
 cp ../../.env.example .env
 ```
 
+### 4. Setup SAGE Web Application
+
+```bash
+cd ../web
+npm install
+```
+
 ---
 
 ## Environment Variables
@@ -254,19 +261,29 @@ SAGE_DEMO_MODE=true
 
 ## Running Locally
 
-### Start Embedding Microservice (Port 8000)
+### Terminal 1: Start Embedding Microservice (Port 8000)
 
 ```bash
 cd services/embeddings
-.venv/bin/python -m uvicorn server:app --host 127.0.0.1 --port 8000
+source .venv/bin/activate
+python -m uvicorn server:app --host 127.0.0.1 --port 8000
 ```
 
-### Start SAGE API Dev Server (Port 3001)
+### Terminal 2: Start SAGE API Dev Server (Port 3001)
 
 ```bash
 cd apps/api
 npm run dev
 ```
+
+### Terminal 3: Start SAGE Web Interface (Port 3000)
+
+```bash
+cd apps/web
+npm run dev
+```
+
+Open your browser at **`http://localhost:3000`** to chat with SAGE directly.
 
 ---
 
