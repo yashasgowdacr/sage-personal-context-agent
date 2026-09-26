@@ -14,7 +14,47 @@ import type {
   ToolExecutionResult,
   VerificationResult,
   ExplainableExecutionEvent,
+  ReasoningDecision,
+  MemorySearchResult,
 } from "./types.js";
+
+function computeMemoriesUsed(
+  decision: ReasoningDecision,
+  context: OrchestrationContext,
+  toolName?: string,
+): MemorySearchResult[] {
+  // If context fusion recommendation was used
+  if (decision.thoughtSummary.includes("Context fusion")) {
+    return (context.sageContext?.memories ?? []).map((m) => ({
+      score: m.score ?? 0.8,
+      memory: {
+        id: "",
+        userId: context.userId,
+        content: m.content,
+        type: m.type as any,
+        importance: m.importance,
+        source: "agent" as const,
+        createdAt: new Date().toISOString(),
+      },
+    }));
+  }
+
+  // If a question was answered from memory or memory inquiry was recalled
+  if (
+    decision.thoughtSummary.includes("memory matching") ||
+    decision.thoughtSummary.includes("recalled memory") ||
+    decision.thoughtSummary.includes("retrieved context")
+  ) {
+    return context.retrievedMemories.slice(0, 1);
+  }
+
+  // If memory was deleted
+  if (toolName === "forget_memory") {
+    return context.retrievedMemories.slice(0, 1);
+  }
+
+  return [];
+}
 
 export class SageOrchestrator {
   private registry: ActionRegistry;
@@ -133,11 +173,15 @@ export class SageOrchestrator {
         context.userRequest,
         constraints.maxMemoryRetrievals,
       );
-      context.retrievedMemories = memories;
+      // Strictly exclude points with type === "task" and enforce relevance threshold
+      const relevantNonTaskMemories = memories.filter(
+        (m) => m.memory.type !== "task" && m.score >= (constraints.minMemoryScore ?? 0.70)
+      );
+      context.retrievedMemories = relevantNonTaskMemories;
 
       logger.logState(currentState, {
-        count: memories.length,
-        topScore: memories[0]?.score,
+        count: relevantNonTaskMemories.length,
+        topScore: relevantNonTaskMemories[0]?.score,
         fusedMemories: sageContext.memories.length,
         fusedTasks: sageContext.pendingTasks.length,
       });
@@ -263,7 +307,7 @@ export class SageOrchestrator {
         requestId,
         response: decision.directResponse ?? "Request completed.",
         transitions: logger.getTransitions(),
-        memoriesUsed: context.retrievedMemories,
+        memoriesUsed: computeMemoriesUsed(decision, context),
         sageContext: context.sageContext,
         executionEvents,
         metadata: {
@@ -299,7 +343,7 @@ export class SageOrchestrator {
         requestId,
         response: `The required tool "${selectedToolName}" is not available in the registry.`,
         transitions: logger.getTransitions(),
-        memoriesUsed: context.retrievedMemories,
+        memoriesUsed: [],
         sageContext: context.sageContext,
         executionEvents,
         actionResult: {
@@ -339,7 +383,7 @@ export class SageOrchestrator {
         requestId,
         response: `Action "${tool.name}" requires confirmation before execution as it is a sensitive or irreversible operation.`,
         transitions: logger.getTransitions(),
-        memoriesUsed: context.retrievedMemories,
+        memoriesUsed: [],
         sageContext: context.sageContext,
         executionEvents,
         requiresConfirmation: {
@@ -429,7 +473,7 @@ export class SageOrchestrator {
         requestId,
         response: `Action "${tool.name}" failed: ${executionResult.error ?? "Unknown execution error"}.`,
         transitions: logger.getTransitions(),
-        memoriesUsed: context.retrievedMemories,
+        memoriesUsed: [],
         sageContext: context.sageContext,
         executionEvents,
         actionResult: {
@@ -497,7 +541,7 @@ export class SageOrchestrator {
         requestId,
         response: `Action "${tool.name}" executed but failed verification: ${verification.reason ?? "Verification failed"}.`,
         transitions: logger.getTransitions(),
-        memoriesUsed: context.retrievedMemories,
+        memoriesUsed: [],
         sageContext: context.sageContext,
         executionEvents,
         actionResult: {
@@ -651,7 +695,7 @@ export class SageOrchestrator {
       requestId,
       response: finalResponse,
       transitions: logger.getTransitions(),
-      memoriesUsed: context.retrievedMemories,
+      memoriesUsed: computeMemoriesUsed(decision, context, tool.name),
       sageContext: context.sageContext,
       executionEvents,
       actionResult: {

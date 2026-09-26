@@ -29,5 +29,6 @@ export interface ContextBuilderOptions {
   minMemoryScore?: number | undefined;
   maxMemories?: number | undefined;
   includeTasks?: boolean | undefined;
+  forceIncludeTasks?: boolean | undefined;
   maxRecentActions?: number | undefined;
 }

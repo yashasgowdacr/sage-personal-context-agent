@@ -116,9 +116,32 @@ export class StandardReasoner implements SageReasoner {
       }
     }
 
+    // 0e. Check for Appointment / Scheduling clarification intent
+    const isAppointmentRequest =
+      lower.includes("appointment") ||
+      (lower.includes("schedule") &&
+        (lower.includes("doctor") ||
+          lower.includes("dentist") ||
+          lower.includes("meeting") ||
+          lower.includes("call") ||
+          lower.includes("visit") ||
+          lower.includes("consultation")));
+
+    if (isAppointmentRequest) {
+      return {
+        thoughtSummary: "Detected appointment scheduling intent; requesting date and time details",
+        directResponse: "I can help with that. What date and time would you like for the appointment?",
+      };
+    }
+
     // 0c. Check for Task Listing intent ("what tasks do i have?", "show my pending tasks", "what do i need to do?")
     if (
       lower.includes("what tasks do i have") ||
+      lower.includes("what are my pending tasks") ||
+      lower.includes("what are my tasks") ||
+      lower.includes("what tasks do i") ||
+      lower.includes("what tasks") ||
+      lower.includes("my pending tasks") ||
       lower.includes("show my tasks") ||
       lower.includes("show my pending tasks") ||
       lower.includes("list my tasks") ||
@@ -342,15 +365,36 @@ export class StandardReasoner implements SageReasoner {
       };
     }
 
-    // 3. Check for questions answered by retrieved memories
-    if (context.retrievedMemories && context.retrievedMemories.length > 0) {
-      const topMemory = context.retrievedMemories[0];
-      const minScore = context.constraints.minMemoryScore ?? 0.65;
+    // 3. Check for questions / memory recall answered by retrieved memories
+    const isMemoryRecallInquiry =
+      isQuestion ||
+      lower.includes("what do you remember") ||
+      lower.includes("remember about me") ||
+      lower.includes("tell me about") ||
+      lower.includes("study habit") ||
+      lower.includes("my preference") ||
+      lower.includes("about me");
 
-      if (topMemory && topMemory.score >= minScore) {
+    if (isMemoryRecallInquiry && context.retrievedMemories && context.retrievedMemories.length > 0) {
+      // Exclude tasks - only genuine memories
+      const nonTaskMemories = context.retrievedMemories.filter((m) => m.memory.type !== "task");
+      const topMemory = nonTaskMemories[0];
+      const minScore = context.constraints.minMemoryScore ?? 0.70;
+
+      if (
+        topMemory &&
+        (topMemory.score >= minScore ||
+          lower.includes("remember about me") ||
+          lower.includes("what do you remember"))
+      ) {
+        let content = topMemory.memory.content;
+        if (lower.includes("what do you remember") || lower.includes("remember about me")) {
+          const cleaned = content.replace(/^i\s+/i, "you ").replace(/^my\s+/i, "your ");
+          content = `I remember that ${cleaned.endsWith(".") ? cleaned.slice(0, -1) : cleaned}.`;
+        }
         return {
           thoughtSummary: "Found high-confidence memory matching the question",
-          directResponse: topMemory.memory.content,
+          directResponse: content,
         };
       }
     }

@@ -49,9 +49,98 @@ export const DEFAULT_RELEVANCE_THRESHOLD = 0.70;
 
 
 /**
+ * Determines whether pending tasks are relevant to the user input.
+ * Implements the Task Reference Rule:
+ * Tasks should be included when:
+ * - user explicitly asks about tasks ("what are my pending tasks", "show my tasks")
+ * - user refers to a specific task (e.g. mentions keywords from task title)
+ * - current request clearly relates to task planning / work ("what should I work on tonight")
+ * - current context requires task planning / action
+ *
+ * Tasks should NOT be included merely because they are pending.
+ */
+export function isTaskRelevantToInput(input: string, tasks: Array<{ title: string }>): boolean {
+  const lower = input.toLowerCase().trim();
+  if (!lower) return false;
+
+  // 1. Unrelated cross-domain queries should NOT include study/work tasks
+  // (e.g. appointment scheduling, doctor visits, greetings, general chit-chat)
+  const isUnrelatedCrossDomain =
+    lower.includes("appointment") ||
+    lower.includes("doctor") ||
+    lower.includes("dentist") ||
+    lower.includes("hotel") ||
+    lower.includes("flight") ||
+    lower.includes("reservation") ||
+    lower.startsWith("hello") ||
+    lower.startsWith("hi ") ||
+    lower === "hi" ||
+    lower.includes("joke") ||
+    lower.includes("weather");
+
+  // Check if any specific task title keyword is explicitly mentioned in the request
+  const mentionsSpecificTask = tasks.some((t) => {
+    const titleWords = t.title
+      .toLowerCase()
+      .split(/\s+/)
+      .filter(
+        (w) =>
+          w.length >= 3 &&
+          !["finish", "complete", "tomorrow", "tonight", "task", "assignment", "the", "and", "for"].includes(w)
+      );
+    return titleWords.some((w) => lower.includes(w));
+  });
+
+  if (mentionsSpecificTask) {
+    return true;
+  }
+
+  if (isUnrelatedCrossDomain) {
+    return false;
+  }
+
+  // 2. Explicit task listing / inquiry
+  if (
+    lower.includes("task") ||
+    lower.includes("tasks") ||
+    lower.includes("to-do") ||
+    lower.includes("todo") ||
+    lower.includes("what do i have") ||
+    lower.includes("what do i need to do")
+  ) {
+    return true;
+  }
+
+  // 3. Work / Study / Task Planning queries
+  if (
+    lower.includes("work on") ||
+    lower.includes("what should i do") ||
+    lower.includes("what to do") ||
+    lower.includes("what should i study") ||
+    lower.includes("what to study") ||
+    lower.includes("assignment") ||
+    lower.includes("homework")
+  ) {
+    return true;
+  }
+
+  // 4. Task actions (completing, finishing, cancelling)
+  if (
+    lower.startsWith("i finished") ||
+    lower.startsWith("completed") ||
+    lower.startsWith("mark ") ||
+    lower.startsWith("cancel ")
+  ) {
+    return true;
+  }
+
+  return false;
+}
+
+/**
  * Builds a unified, relevance-filtered SageContext combining:
  * 1. Semantic persistent memories from Qdrant
- * 2. Active pending tasks
+ * 2. Active pending tasks (filtered by task relevance)
  * 3. Recent action results
  */
 export async function buildSageContext(
@@ -94,16 +183,19 @@ export async function buildSageContext(
     }
   }
 
-  // 2. Retrieve active pending tasks
+  // 2. Retrieve active pending tasks (only if relevant to current input or explicitly forced)
   let pendingTasks: SageContextTask[] = [];
   if (options?.includeTasks !== false) {
     try {
       const rawTasks = await taskService.listTasks(trimmedUserId, "pending");
-      pendingTasks = rawTasks.map((t) => ({
-        id: t.id,
-        title: t.title,
-        ...(t.dueAt ? { dueAt: t.dueAt } : {}),
-      }));
+      const shouldInclude = options?.forceIncludeTasks || isTaskRelevantToInput(trimmedInput, rawTasks);
+      if (shouldInclude) {
+        pendingTasks = rawTasks.map((t) => ({
+          id: t.id,
+          title: t.title,
+          ...(t.dueAt ? { dueAt: t.dueAt } : {}),
+        }));
+      }
     } catch {
       pendingTasks = [];
     }

@@ -102,24 +102,37 @@ export const App: React.FC = () => {
       // Extract Context Fusion indicators
       const contextUsed: ContextUsedItem[] = [];
 
-      // 1. Memories used
-      const usedMems = res.sageContext?.retrievedMemories || res.memoriesUsed || [];
+      // 1. Memories used (strictly filter out tasks and only include genuinely used non-task memories)
+      const usedMems = (res.memoriesUsed || []).filter((m: any) => {
+        const memObj = m?.memory || m;
+        return memObj && memObj.type !== 'task';
+      });
+
       for (const m of usedMems) {
         const memObj = (m as any).memory || m;
         const content = memObj.content || String(memObj);
         if (content) {
-          const isPref = content.toLowerCase().includes('night') || content.toLowerCase().includes('study') || content.toLowerCase().includes('prefer');
+          const isPref =
+            content.toLowerCase().includes('night') ||
+            content.toLowerCase().includes('study') ||
+            content.toLowerCase().includes('prefer');
           contextUsed.push({
             type: isPref ? 'preference' : 'context',
-            title: isPref ? 'Study preference' : 'Personal preference',
+            title: isPref ? 'Study preference' : 'Stored memory',
             detail: content,
           });
         }
       }
 
-      // 2. Pending tasks used
+      // 2. Pending tasks used (only when task planning/recommendation context was used)
       const activeTasks = res.sageContext?.pendingTasks || [];
-      if (text.toLowerCase().includes('work on') || text.toLowerCase().includes('tonight') || text.toLowerCase().includes('what should i')) {
+      const isTaskContextRelevant =
+        text.toLowerCase().includes('work on') ||
+        text.toLowerCase().includes('tonight') ||
+        text.toLowerCase().includes('what should i do') ||
+        text.toLowerCase().includes('what should i study');
+
+      if (isTaskContextRelevant && activeTasks.length > 0) {
         for (const t of activeTasks) {
           contextUsed.push({
             type: 'task',
