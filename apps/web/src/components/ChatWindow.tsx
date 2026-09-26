@@ -13,11 +13,9 @@ interface ChatWindowProps {
 
 const SUGGESTIONS = [
   'Remember that I study best at night.',
+  'What do you remember about me?',
+  'Create a task to finish DBMS tomorrow.',
   'What should I work on tonight?',
-  'Create a task to finish my DBMS assignment tomorrow.',
-  'What tasks do I have?',
-  'I finished my DBMS assignment.',
-  'What tasks do I have left?',
 ];
 
 export const ChatWindow: React.FC<ChatWindowProps> = ({
@@ -30,7 +28,6 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
 }) => {
   const bottomRef = useRef<HTMLDivElement>(null);
 
-  // Auto-scroll on new message or loading change
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, isLoading]);
@@ -42,13 +39,13 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
           <div className="welcome-badge">
             <span className="welcome-spark">✧</span>
           </div>
-          <h2 className="welcome-title">Welcome to SAGE</h2>
+          <h2 className="welcome-title">SAGE Command Center</h2>
           <p className="welcome-tagline">
-            Listen • Remember • Reason • Act
+            Listen • Remember • Understand Context • Reason • Act • Verify
           </p>
           <p className="welcome-desc">
-            Your personal context & action agent. I retain memories, manage tasks,
-            and fuse long-term context into personalized decisions.
+            Hi, I'm SAGE. I remember your personal context, manage your tasks in Qdrant,
+            and autonomously execute verified actions on your behalf.
           </p>
 
           <div className="suggestions-container">
@@ -63,7 +60,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                   disabled={isLoading}
                 >
                   <span className="chip-arrow">›</span>
-                  <span>{text}</span>
+                  <span>"{text}"</span>
                 </button>
               ))}
             </div>
@@ -81,7 +78,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
             />
           ))}
 
-          {/* Thinking / Typing indicator */}
+          {/* SAGE Thinking / Reasoning indicator */}
           {isLoading && (
             <div className="message-row message-row-sage" id="typing-indicator">
               <div className="sage-avatar" aria-hidden="true">

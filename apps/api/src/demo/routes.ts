@@ -37,4 +37,55 @@ export async function demoRoutes(app: FastifyInstance) {
       });
     }
   });
+
+  // Safe read-only context endpoint for Command Center UI sidebar
+  app.get("/demo/context", async (request, reply) => {
+    const query = (request.query ?? {}) as { userId?: string };
+    const targetUserId = query.userId ?? DEMO_USER_ID;
+
+    try {
+      // 1. Fetch real pending tasks from taskService
+      const { taskService } = await import("../tasks/service.js");
+      const tasks = await taskService.listTasks(targetUserId, "pending");
+
+      // 2. Fetch real recent actions from actionTracker
+      const { actionTracker } = await import("../context/builder.js");
+      const recentActions = actionTracker.getRecent(targetUserId, 10).map((a) => a.action);
+
+      // 3. Fetch real stored memories from Qdrant (excluding task records)
+      const { qdrant, MEMORY_COLLECTION } = await import("../memory/qdrant.js");
+      const scrollResult = await qdrant.scroll(MEMORY_COLLECTION, {
+        filter: {
+          must: [{ key: "userId", match: { value: targetUserId } }],
+        },
+        limit: 50,
+        with_payload: true,
+      });
+
+      const memories = (scrollResult.points ?? [])
+        .map((p) => {
+          const payload = p.payload as Record<string, unknown> | undefined;
+          return {
+            id: String(p.id ?? payload?.id ?? ""),
+            content: String(payload?.content ?? ""),
+            type: String(payload?.type ?? "fact"),
+            createdAt: payload?.createdAt ? String(payload.createdAt) : undefined,
+          };
+        })
+        .filter((item) => Boolean(item.content && item.type !== "task"));
+
+      return reply.send({
+        userId: targetUserId,
+        memories,
+        tasks,
+        recentActions,
+      });
+    } catch (err) {
+      request.log.error(err);
+      return reply.code(500).send({
+        error: "Failed to fetch demo context",
+        message: (err as Error).message,
+      });
+    }
+  });
 }

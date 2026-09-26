@@ -1,4 +1,4 @@
-import type { OrchestrationApiResponse, HealthStatus, ContextTaskItem } from '../types/sage';
+import type { OrchestrationApiResponse, HealthStatus, DemoContextState } from '../types/sage';
 
 // Default to configured environment variable or fallback to empty string (Vite proxy)
 const API_BASE_URL = (import.meta.env.VITE_SAGE_API_URL || '').replace(/\/+$/, '');
@@ -11,7 +11,7 @@ export class SageApiService {
 
   constructor() {
     this.baseUrl = API_BASE_URL;
-    this.sessionId = `web-session-${Date.now()}`;
+    this.sessionId = `command-center-${Date.now()}`;
   }
 
   getSessionId(): string {
@@ -19,7 +19,7 @@ export class SageApiService {
   }
 
   resetSession(): void {
-    this.sessionId = `web-session-${Date.now()}`;
+    this.sessionId = `command-center-${Date.now()}`;
   }
 
   /**
@@ -83,10 +83,19 @@ export class SageApiService {
       return data as OrchestrationApiResponse;
     } catch (err: unknown) {
       const error = err as Error;
-      if (error.message?.includes('Failed to fetch') || error.message?.includes('NetworkError') || error.message?.includes('ECONNREFUSED')) {
+      if (
+        error.message?.includes('Failed to fetch') ||
+        error.message?.includes('NetworkError') ||
+        error.message?.includes('ECONNREFUSED')
+      ) {
         throw new Error('SAGE is offline. Make sure the SAGE API is running on localhost:3001.');
       }
-      if (error.message?.includes('memory') || error.message?.includes('embedding') || error.message?.includes('FastEmbed') || error.message?.includes('Qdrant')) {
+      if (
+        error.message?.includes('memory') ||
+        error.message?.includes('embedding') ||
+        error.message?.includes('FastEmbed') ||
+        error.message?.includes('Qdrant')
+      ) {
         throw new Error("SAGE couldn't access its memory right now. Please try again.");
       }
       throw error;
@@ -117,18 +126,35 @@ export class SageApiService {
   }
 
   /**
-   * Fetch live pending tasks for the demo user
+   * Fetch live personal context state (real Qdrant memories, real pending tasks, recent actions)
    */
-  async fetchTasks(): Promise<ContextTaskItem[]> {
+  async fetchDemoContext(): Promise<DemoContextState> {
     try {
-      const res = await fetch(`${this.baseUrl}/tasks?userId=${encodeURIComponent(DEMO_USER_ID)}&status=pending`, {
+      const res = await fetch(`${this.baseUrl}/demo/context?userId=${encodeURIComponent(DEMO_USER_ID)}`, {
         headers: { Accept: 'application/json' },
       });
-      if (!res.ok) return [];
+      if (!res.ok) {
+        return {
+          userId: DEMO_USER_ID,
+          memories: [],
+          tasks: [],
+          recentActions: [],
+        };
+      }
       const data = await res.json();
-      return (data.tasks || []) as ContextTaskItem[];
+      return {
+        userId: data.userId || DEMO_USER_ID,
+        memories: data.memories || [],
+        tasks: data.tasks || [],
+        recentActions: data.recentActions || [],
+      };
     } catch {
-      return [];
+      return {
+        userId: DEMO_USER_ID,
+        memories: [],
+        tasks: [],
+        recentActions: [],
+      };
     }
   }
 }

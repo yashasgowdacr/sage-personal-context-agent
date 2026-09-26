@@ -1,5 +1,6 @@
 import React from 'react';
 import type { ChatMessage } from '../types/sage';
+import { ActionCard } from './ActionCard';
 
 interface MessageBubbleProps {
   message: ChatMessage;
@@ -16,24 +17,6 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
 }) => {
   const isUser = message.role === 'user';
   const isSystem = message.role === 'system';
-
-  // Filter high-level execution events for clean user-facing badges (NO raw chain-of-thought)
-  const safeBadges = (message.executionEvents || [])
-    .filter((e) => e.status === 'completed' && e.label)
-    .map((e) => e.label.replace(/^[\s✓○●]+/, ''))
-    .filter((label) => {
-      const lower = label.toLowerCase();
-      return (
-        lower.includes('memory') ||
-        lower.includes('task') ||
-        lower.includes('action') ||
-        lower.includes('fused') ||
-        lower.includes('verified')
-      );
-    });
-
-  // Deduplicate badges
-  const uniqueBadges = Array.from(new Set(safeBadges)).slice(0, 3);
 
   return (
     <div
@@ -62,16 +45,33 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
           ))}
         </div>
 
-        {/* Execution Events / Action Tags */}
-        {!isUser && uniqueBadges.length > 0 && (
-          <div className="bubble-badges">
-            {uniqueBadges.map((badge, idx) => (
-              <span key={idx} className="event-badge">
-                <span className="badge-dot" />
-                {badge}
-              </span>
-            ))}
+        {/* MOST IMPORTANT HACKATHON FEATURE: CONTEXT FUSION INDICATOR */}
+        {!isUser && message.contextUsed && message.contextUsed.length > 0 && (
+          <div className="context-fusion-indicator" id="context-fusion-box">
+            <div className="fusion-header">
+              <span className="fusion-icon">🧠</span>
+              <span className="fusion-title">Context used</span>
+            </div>
+            <ul className="fusion-list">
+              {message.contextUsed.map((item, idx) => (
+                <li key={idx} className="fusion-item">
+                  <span className="fusion-bullet">•</span>
+                  <span className="fusion-item-title">{item.title}:</span>
+                  <span className="fusion-item-detail">"{item.detail}"</span>
+                </li>
+              ))}
+            </ul>
           </div>
+        )}
+
+        {/* Compact Verified Action Card */}
+        {!isUser && message.actionResult && message.actionResult.success && (
+          <ActionCard
+            tool={message.actionResult.tool}
+            success={message.actionResult.success}
+            verified={message.actionResult.verified}
+            data={message.actionResult.data}
+          />
         )}
 
         {/* Safety Gate Confirmation Card */}
@@ -83,20 +83,9 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
             </div>
             <p className="confirmation-prompt">
               {message.requiresConfirmation.message ||
-                `Are you sure you want to execute '${message.requiresConfirmation.tool}'? This action cannot be undone.`}
+                `This action will modify your records. Do you want SAGE to continue?`}
             </p>
             <div className="confirmation-actions">
-              <button
-                type="button"
-                className="btn btn-danger btn-sm"
-                id="btn-confirm-action"
-                disabled={isProcessingAction}
-                onClick={() =>
-                  onConfirmAction(message.requiresConfirmation!.confirmationToken)
-                }
-              >
-                {isProcessingAction ? 'Executing...' : 'Yes, Confirm'}
-              </button>
               {onCancelAction && (
                 <button
                   type="button"
@@ -108,6 +97,17 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
                   Cancel
                 </button>
               )}
+              <button
+                type="button"
+                className="btn btn-danger btn-sm"
+                id="btn-confirm-action"
+                disabled={isProcessingAction}
+                onClick={() =>
+                  onConfirmAction(message.requiresConfirmation!.confirmationToken)
+                }
+              >
+                {isProcessingAction ? 'Executing...' : 'Confirm'}
+              </button>
             </div>
           </div>
         )}

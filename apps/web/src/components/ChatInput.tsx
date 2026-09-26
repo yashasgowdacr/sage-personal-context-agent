@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 
-// Web Speech API interface declarations
 interface IWindow extends Window {
   SpeechRecognition?: any;
   webkitSpeechRecognition?: any;
@@ -20,12 +19,11 @@ export const ChatInput: React.FC<ChatInputProps> = ({
   const [input, setInput] = useState('');
   const [isListening, setIsListening] = useState(false);
   const [voiceSupported, setVoiceSupported] = useState(false);
-  const [voiceError, setVoiceError] = useState<string | null>(null);
+  const [voiceNotice, setVoiceNotice] = useState<string | null>(null);
 
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const recognitionRef = useRef<any>(null);
 
-  // Initialize Web Speech API
   useEffect(() => {
     const win = window as unknown as IWindow;
     const SpeechRecognition = win.SpeechRecognition || win.webkitSpeechRecognition;
@@ -39,7 +37,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
 
       recognition.onstart = () => {
         setIsListening(true);
-        setVoiceError(null);
+        setVoiceNotice('Browser voice input active: Listening...');
       };
 
       recognition.onresult = (event: any) => {
@@ -58,12 +56,15 @@ export const ChatInput: React.FC<ChatInputProps> = ({
       recognition.onerror = (event: any) => {
         setIsListening(false);
         if (event.error !== 'no-speech') {
-          setVoiceError(`Voice recognition: ${event.error}`);
+          setVoiceNotice(`Voice recognition error: ${event.error}`);
+        } else {
+          setVoiceNotice(null);
         }
       };
 
       recognition.onend = () => {
         setIsListening(false);
+        setTimeout(() => setVoiceNotice(null), 3000);
       };
 
       recognitionRef.current = recognition;
@@ -83,7 +84,10 @@ export const ChatInput: React.FC<ChatInputProps> = ({
   }, []);
 
   const handleToggleVoice = useCallback(() => {
-    if (!voiceSupported) return;
+    if (!voiceSupported) {
+      setVoiceNotice('Voice input is not supported in this browser.');
+      return;
+    }
 
     if (isListening) {
       recognitionRef.current?.stop();
@@ -108,7 +112,6 @@ export const ChatInput: React.FC<ChatInputProps> = ({
     onSendMessage(trimmed);
     setInput('');
 
-    // Reset textarea height
     if (textareaRef.current) {
       textareaRef.current.style.height = 'auto';
     }
@@ -123,31 +126,23 @@ export const ChatInput: React.FC<ChatInputProps> = ({
 
   const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     setInput(e.target.value);
-    // Auto adjust height
     const target = e.target;
     target.style.height = 'auto';
     target.style.height = `${Math.min(target.scrollHeight, 160)}px`;
   };
 
   return (
-    <div className="chat-input-wrapper">
-      {voiceError && (
-        <div className="voice-notice voice-notice-error">
-          <span>{voiceError}</span>
+    <div className="chat-input-wrapper" id="chat-input-wrapper">
+      {voiceNotice && (
+        <div className={`voice-notice ${isListening ? 'voice-notice-active' : ''}`}>
+          <span>{voiceNotice}</span>
           <button
             type="button"
             className="notice-close"
-            onClick={() => setVoiceError(null)}
+            onClick={() => setVoiceNotice(null)}
           >
             ×
           </button>
-        </div>
-      )}
-
-      {isListening && (
-        <div className="voice-active-indicator" id="voice-listening-indicator">
-          <span className="pulse-dot" />
-          <span>Browser Voice Input: Listening... Speak naturally</span>
         </div>
       )}
 
@@ -158,15 +153,15 @@ export const ChatInput: React.FC<ChatInputProps> = ({
           className="chat-textarea"
           placeholder={
             isListening
-              ? 'Listening to speech...'
-              : 'Ask SAGE, save a memory, or manage tasks... (Enter to send)'
+              ? 'Listening to speech (browser voice input)...'
+              : 'Ask SAGE anything...'
           }
           value={input}
           onChange={handleInputChange}
           onKeyDown={handleKeyDown}
           disabled={isLoading || disabled}
           rows={1}
-          aria-label="Chat input"
+          aria-label="Ask SAGE anything"
         />
 
         <div className="input-controls">
@@ -177,15 +172,15 @@ export const ChatInput: React.FC<ChatInputProps> = ({
               !voiceSupported ? 'btn-voice-disabled' : ''
             }`}
             onClick={handleToggleVoice}
-            disabled={!voiceSupported || isLoading || disabled}
+            disabled={isLoading || disabled}
             title={
               voiceSupported
                 ? isListening
-                  ? 'Stop Voice Input'
-                  : 'Browser Voice Input (Speech-to-Text)'
+                  ? 'Stop browser voice input'
+                  : 'Browser voice input'
                 : 'Voice input is not supported in this browser.'
             }
-            aria-label="Browser Voice Input"
+            aria-label="Browser voice input"
           >
             <span className="voice-icon">{isListening ? '🔴' : '🎤'}</span>
           </button>
@@ -196,11 +191,12 @@ export const ChatInput: React.FC<ChatInputProps> = ({
             className="btn btn-primary btn-send"
             disabled={!input.trim() || isLoading || disabled}
             aria-label="Send message"
+            title="Send (Enter)"
           >
             {isLoading ? (
               <span className="btn-spinner" />
             ) : (
-              <span className="send-arrow">➔</span>
+              <span className="send-arrow">➤</span>
             )}
           </button>
         </div>
@@ -210,8 +206,8 @@ export const ChatInput: React.FC<ChatInputProps> = ({
         <span className="input-hint">
           <strong>Enter</strong> to send • <strong>Shift + Enter</strong> for new line
         </span>
-        <span className="voice-disclaimer">
-          🎤 Browser Speech-to-Text • Omi Wearable Webhook Connected
+        <span className="voice-label-tag">
+          🎤 Browser voice input • Wearable Omi Webhook Active
         </span>
       </div>
     </div>

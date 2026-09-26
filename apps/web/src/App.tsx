@@ -1,24 +1,46 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Header } from './components/Header';
 import { ChatWindow } from './components/ChatWindow';
 import { ChatInput } from './components/ChatInput';
 import { ContextPanel } from './components/ContextPanel';
 import { sageApi } from './services/sageApi';
-import type { ChatMessage, SageContextSummary } from './types/sage';
+import type {
+  ChatMessage,
+  AgentStatusType,
+  ContextMemoryItem,
+  ContextTaskItem,
+  ContextUsedItem,
+} from './types/sage';
 
 export const App: React.FC = () => {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [isLoading, setIsLoading] = useState(false);
-  const [isConnected, setIsConnected] = useState(false);
-  const [isContextOpen, setIsContextOpen] = useState(false);
+  const [agentStatus, setAgentStatus] = useState<AgentStatusType>('offline');
   const [isResetting, setIsResetting] = useState(false);
   const [isProcessingAction, setIsProcessingAction] = useState(false);
 
-  const [contextSummary, setContextSummary] = useState<SageContextSummary>({
-    retrievedMemories: [],
-    pendingTasks: [],
-    recentActions: [],
-  });
+  // Live Personal Context State from real backend
+  const [memories, setMemories] = useState<ContextMemoryItem[]>([]);
+  const [tasks, setTasks] = useState<ContextTaskItem[]>([]);
+  const [recentActivity, setRecentActivity] = useState<string[]>([]);
+  const [isRefreshingContext, setIsRefreshingContext] = useState(false);
+
+  const statusTimerRef = useRef<any>(null);
+
+  // Synchronize with real backend context
+  const refreshContext = useCallback(async () => {
+    setIsRefreshingContext(true);
+    try {
+      const data = await sageApi.fetchDemoContext();
+      setMemories(data.memories);
+      setTasks(data.tasks);
+      setRecentActivity(data.recentActions);
+    } catch (err) {
+      console.warn('Failed to refresh demo context:', err);
+    } finally {
+      setIsRefreshingContext(false);
+    }
+  }, []);
 
   // Health check on mount and interval
   useEffect(() => {
@@ -26,51 +48,37 @@ export const App: React.FC = () => {
 
     const checkConnection = async () => {
       const ok = await sageApi.checkHealth();
-      if (isMounted) setIsConnected(ok);
+      if (isMounted) {
+        setAgentStatus((prev) => {
+          if (prev === 'thinking' || prev === 'verified') return prev;
+          return ok ? 'online' : 'offline';
+        });
+      }
     };
 
     checkConnection();
-    const interval = setInterval(checkConnection, 10000);
+    refreshContext();
 
+    const interval = setInterval(checkConnection, 10000);
     return () => {
       isMounted = false;
       clearInterval(interval);
+      if (statusTimerRef.current) clearTimeout(statusTimerRef.current);
     };
-  }, []);
-
-  // Sync initial tasks when connected
-  const refreshContext = useCallback(async () => {
-    try {
-      const tasks = await sageApi.fetchTasks();
-      setContextSummary((prev) => ({
-        ...prev,
-        pendingTasks: tasks,
-      }));
-    } catch {
-      // safe fallback
-    }
-  }, []);
-
-  useEffect(() => {
-    if (isConnected) {
-      refreshContext();
-    }
-  }, [isConnected, refreshContext]);
+  }, [refreshContext]);
 
   const handleSendMessage = async (
     text: string,
     options?: { confirmed?: boolean; confirmationToken?: string }
   ) => {
-    const userMsgId = `msg-${Date.now()}`;
     const userTimestamp = new Date().toLocaleTimeString([], {
       hour: '2-digit',
       minute: '2-digit',
     });
 
-    // Add user message if not just a background confirmation
     if (!options?.confirmed) {
       const userMessage: ChatMessage = {
-        id: userMsgId,
+        id: `msg-${Date.now()}`,
         role: 'user',
         content: text,
         timestamp: userTimestamp,
@@ -79,6 +87,7 @@ export const App: React.FC = () => {
     }
 
     setIsLoading(true);
+    setAgentStatus('thinking');
 
     try {
       const res = await sageApi.sendMessage(text, options);
@@ -87,33 +96,62 @@ export const App: React.FC = () => {
         minute: '2-digit',
       });
 
+      // Extract Context Fusion indicators
+      const contextUsed: ContextUsedItem[] = [];
+
+      // 1. Memories used
+      const usedMems = res.sageContext?.retrievedMemories || res.memoriesUsed || [];
+      for (const m of usedMems) {
+        const memObj = (m as any).memory || m;
+        const content = memObj.content || String(memObj);
+        if (content) {
+          const isPref = content.toLowerCase().includes('night') || content.toLowerCase().includes('study') || content.toLowerCase().includes('prefer');
+          contextUsed.push({
+            type: isPref ? 'preference' : 'context',
+            title: isPref ? 'Study preference' : 'Personal preference',
+            detail: content,
+          });
+        }
+      }
+
+      // 2. Pending tasks used
+      const activeTasks = res.sageContext?.pendingTasks || [];
+      if (text.toLowerCase().includes('work on') || text.toLowerCase().includes('tonight') || text.toLowerCase().includes('what should i')) {
+        for (const t of activeTasks) {
+          contextUsed.push({
+            type: 'task',
+            title: 'Pending task',
+            detail: `${t.title}${t.dueAt ? ` (due: ${t.dueAt})` : ''}`,
+          });
+        }
+      }
+
       const sageMessage: ChatMessage = {
         id: `sage-${Date.now()}`,
         role: 'assistant',
         content: res.response || (res.success ? 'Action executed.' : 'Failed to process request.'),
         timestamp: sageTimestamp,
         executionEvents: res.executionEvents,
+        actionResult: res.actionResult,
+        contextUsed: contextUsed.length > 0 ? contextUsed : undefined,
         requiresConfirmation: res.requiresConfirmation,
       };
 
       setMessages((prev) => [...prev, sageMessage]);
 
-      // Update personal context from response's unified sageContext
-      if (res.sageContext) {
-        const rawMemories = res.sageContext.retrievedMemories || [];
-        const normalizedMemories = rawMemories.map((m: any) => ({
-          score: m.score,
-          content: m.memory?.content || m.content || String(m),
-          type: m.memory?.type || m.type,
-        }));
-
-        setContextSummary((prev) => ({
-          retrievedMemories:
-            normalizedMemories.length > 0 ? normalizedMemories : prev.retrievedMemories,
-          pendingTasks: res.sageContext?.pendingTasks ?? prev.pendingTasks,
-          recentActions: res.sageContext?.recentActions ?? prev.recentActions,
-        }));
+      // Set verified action status if verified
+      if (res.actionResult?.verified) {
+        setAgentStatus('verified');
+        if (statusTimerRef.current) clearTimeout(statusTimerRef.current);
+        statusTimerRef.current = setTimeout(() => {
+          setAgentStatus('online');
+        }, 3500);
+      } else {
+        setAgentStatus('online');
       }
+
+      // Refresh live backend context sidebar
+      await refreshContext();
     } catch (err: unknown) {
       const errorMsg = (err as Error).message || 'An unexpected error occurred.';
       const errorTimestamp = new Date().toLocaleTimeString([], {
@@ -130,6 +168,7 @@ export const App: React.FC = () => {
       };
 
       setMessages((prev) => [...prev, errorMessage]);
+      setAgentStatus('online');
     } finally {
       setIsLoading(false);
       setIsProcessingAction(false);
@@ -162,15 +201,11 @@ export const App: React.FC = () => {
     setIsResetting(true);
     try {
       await sageApi.resetDemoState();
-      setContextSummary({
-        retrievedMemories: [],
-        pendingTasks: [],
-        recentActions: [],
-      });
+      await refreshContext();
       const resetNotice: ChatMessage = {
         id: `reset-${Date.now()}`,
         role: 'system',
-        content: '🧹 Demo state reset. Memories, tasks, and recent actions have been cleared.',
+        content: '🧹 Demo state reset. Qdrant memories and tasks cleared.',
         timestamp: new Date().toLocaleTimeString([], {
           hour: '2-digit',
           minute: '2-digit',
@@ -187,15 +222,14 @@ export const App: React.FC = () => {
   return (
     <div className="sage-app" id="sage-app">
       <Header
-        isConnected={isConnected}
-        isContextOpen={isContextOpen}
-        onToggleContext={() => setIsContextOpen((prev) => !prev)}
+        status={agentStatus}
         onResetDemo={handleResetDemo}
         isResetting={isResetting}
       />
 
       <div className="sage-main-layout">
-        <main className="chat-container">
+        {/* LEFT / MAIN AREA — CONVERSATION */}
+        <main className="chat-container" id="chat-container">
           <ChatWindow
             messages={messages}
             isLoading={isLoading}
@@ -207,15 +241,17 @@ export const App: React.FC = () => {
           <ChatInput
             onSendMessage={(text) => handleSendMessage(text)}
             isLoading={isLoading}
-            disabled={!isConnected && messages.length > 0}
+            disabled={agentStatus === 'offline' && messages.length > 0}
           />
         </main>
 
+        {/* RIGHT SIDEBAR — PERSONAL CONTEXT & AGENT ACTIVITY */}
         <ContextPanel
-          isOpen={isContextOpen}
-          onClose={() => setIsContextOpen(false)}
-          contextSummary={contextSummary}
+          memories={memories}
+          tasks={tasks}
+          recentActivity={recentActivity}
           onRefresh={refreshContext}
+          isRefreshing={isRefreshingContext}
         />
       </div>
     </div>

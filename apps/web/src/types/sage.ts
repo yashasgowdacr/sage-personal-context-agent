@@ -1,3 +1,5 @@
+export type AgentStatusType = 'online' | 'thinking' | 'verified' | 'offline';
+
 export interface ExplainableExecutionEvent {
   stage: string;
   label: string;
@@ -13,10 +15,18 @@ export interface ConfirmationRequest {
   confirmationToken: string;
 }
 
+export interface ContextUsedItem {
+  type: 'preference' | 'task' | 'action' | 'context';
+  title: string;
+  detail: string;
+}
+
 export interface ContextMemoryItem {
-  score?: number;
+  id: string;
   content: string;
-  type?: string;
+  type: string;
+  createdAt?: string;
+  score?: number;
 }
 
 export interface ContextTaskItem {
@@ -27,10 +37,11 @@ export interface ContextTaskItem {
   createdAt?: string;
 }
 
-export interface SageContextSummary {
-  retrievedMemories?: ContextMemoryItem[];
-  pendingTasks?: ContextTaskItem[];
-  recentActions?: string[];
+export interface DemoContextState {
+  userId: string;
+  memories: ContextMemoryItem[];
+  tasks: ContextTaskItem[];
+  recentActions: string[];
 }
 
 export interface OrchestrationApiResponse {
@@ -64,8 +75,14 @@ export interface ChatMessage {
   content: string;
   timestamp: string;
   executionEvents?: ExplainableExecutionEvent[];
+  actionResult?: {
+    tool: string;
+    success: boolean;
+    verified: boolean;
+    data?: unknown;
+  };
+  contextUsed?: ContextUsedItem[];
   requiresConfirmation?: ConfirmationRequest;
-  sageContext?: SageContextSummary;
   isError?: boolean;
 }
 

@@ -1,108 +1,64 @@
 import React from 'react';
-import type { SageContextSummary } from '../types/sage';
+import type { ContextMemoryItem, ContextTaskItem } from '../types/sage';
 
 interface ContextPanelProps {
-  isOpen: boolean;
-  onClose: () => void;
-  contextSummary: SageContextSummary;
+  memories: ContextMemoryItem[];
+  tasks: ContextTaskItem[];
+  recentActivity: string[];
   onRefresh?: () => void;
   isRefreshing?: boolean;
 }
 
 export const ContextPanel: React.FC<ContextPanelProps> = ({
-  isOpen,
-  onClose,
-  contextSummary,
+  memories,
+  tasks,
+  recentActivity,
   onRefresh,
   isRefreshing = false,
 }) => {
-  if (!isOpen) return null;
-
-  const memories = contextSummary.retrievedMemories || [];
-  const tasks = contextSummary.pendingTasks || [];
-  const actions = contextSummary.recentActions || [];
-
   return (
-    <aside className="context-panel" id="context-panel" aria-label="Context Panel">
-      <div className="context-header">
-        <div className="context-title-row">
-          <span className="context-icon">🧠</span>
-          <h2 className="context-title">Personal Context</h2>
+    <aside className="command-sidebar" id="command-sidebar" aria-label="Personal Context & Activity">
+      <div className="sidebar-header">
+        <div className="sidebar-title-row">
+          <span className="sidebar-header-icon">🧭</span>
+          <h2 className="sidebar-title">Personal Context</h2>
         </div>
-        <div className="context-header-actions">
-          {onRefresh && (
-            <button
-              type="button"
-              className="btn btn-ghost btn-sm"
-              onClick={onRefresh}
-              disabled={isRefreshing}
-              title="Refresh context"
-              aria-label="Refresh context"
-            >
-              {isRefreshing ? '...' : '↻'}
-            </button>
-          )}
+        {onRefresh && (
           <button
             type="button"
-            className="btn btn-ghost btn-sm context-close-btn"
-            id="close-context-panel"
-            onClick={onClose}
-            aria-label="Close Context Panel"
+            className="btn btn-ghost btn-sm"
+            onClick={onRefresh}
+            disabled={isRefreshing}
+            title="Refresh Qdrant & Task Context"
+            aria-label="Refresh Context"
           >
-            ✕
+            {isRefreshing ? '...' : '↻'}
           </button>
-        </div>
+        )}
       </div>
 
-      <p className="context-disclaimer">
-        High-level state retrieved for decision making. Private thoughts remain confidential.
-      </p>
-
-      <div className="context-body">
-        {/* Active Tasks Section */}
-        <section className="context-section">
-          <div className="section-title-row">
-            <span className="section-icon">📋</span>
-            <h3 className="section-title">Pending Tasks ({tasks.length})</h3>
-          </div>
-          {tasks.length === 0 ? (
-            <div className="empty-context-item">No pending tasks recorded.</div>
-          ) : (
-            <ul className="context-list">
-              {tasks.map((task) => (
-                <li key={task.id} className="context-card task-card">
-                  <div className="task-title-row">
-                    <span className="task-bullet">•</span>
-                    <span className="task-title">{task.title}</span>
-                  </div>
-                  {task.dueAt && (
-                    <span className="task-due-badge">Due: {task.dueAt}</span>
-                  )}
-                </li>
-              ))}
-            </ul>
-          )}
-        </section>
-
-        {/* Semantic Memories Section */}
-        <section className="context-section">
-          <div className="section-title-row">
-            <span className="section-icon">💾</span>
-            <h3 className="section-title">Retrieved Memories ({memories.length})</h3>
+      <div className="sidebar-scrollable">
+        {/* 1. MEMORY SECTION */}
+        <section className="sidebar-section" id="sidebar-memory-section">
+          <div className="section-header-row">
+            <span className="section-icon">🧠</span>
+            <h3 className="section-heading">Memory</h3>
+            <span className="section-counter">{memories.length}</span>
           </div>
           {memories.length === 0 ? (
-            <div className="empty-context-item">
-              No matching memories for latest interaction.
+            <div className="empty-state-card">
+              No memories recorded yet. Tell SAGE what to remember.
             </div>
           ) : (
-            <ul className="context-list">
+            <ul className="sidebar-list">
               {memories.map((mem, idx) => (
-                <li key={idx} className="context-card memory-card">
-                  <p className="memory-content">"{mem.content}"</p>
-                  {mem.score !== undefined && (
-                    <span className="memory-score-badge">
-                      Relevance: {(mem.score * 100).toFixed(0)}%
-                    </span>
+                <li key={mem.id || idx} className="sidebar-card memory-item-card">
+                  <div className="item-bullet-row">
+                    <span className="item-bullet">•</span>
+                    <span className="item-text">{mem.content}</span>
+                  </div>
+                  {mem.type && (
+                    <span className="item-tag tag-memory">{mem.type}</span>
                   )}
                 </li>
               ))}
@@ -110,25 +66,62 @@ export const ContextPanel: React.FC<ContextPanelProps> = ({
           )}
         </section>
 
-        {/* Recent Actions Section */}
-        <section className="context-section">
-          <div className="section-title-row">
-            <span className="section-icon">⚡</span>
-            <h3 className="section-title">Recent Activity</h3>
+        {/* 2. TASKS SECTION */}
+        <section className="sidebar-section" id="sidebar-tasks-section">
+          <div className="section-header-row">
+            <span className="section-icon">✅</span>
+            <h3 className="section-heading">Tasks</h3>
+            <span className="section-counter">{tasks.length}</span>
           </div>
-          {actions.length === 0 ? (
-            <div className="empty-context-item">No recent actions logged.</div>
+          {tasks.length === 0 ? (
+            <div className="empty-state-card">
+              No pending tasks. Ask SAGE to add one.
+            </div>
           ) : (
-            <ul className="context-list">
-              {actions.slice(-4).map((action, idx) => (
-                <li key={idx} className="context-card action-card">
-                  <span className="action-dot" />
-                  <span className="action-text">{action}</span>
+            <ul className="sidebar-list">
+              {tasks.map((task) => (
+                <li key={task.id} className="sidebar-card task-item-card">
+                  <div className="task-row-main">
+                    <span className="task-title-text">{task.title}</span>
+                    <span className="task-status-pill">{task.status}</span>
+                  </div>
+                  {task.dueAt && (
+                    <div className="task-due-row">
+                      <span className="task-clock-icon">🕒</span>
+                      <span className="task-due-text">{task.dueAt}</span>
+                    </div>
+                  )}
                 </li>
               ))}
             </ul>
           )}
         </section>
+
+        {/* 3. RECENT ACTIVITY SECTION */}
+        <section className="sidebar-section" id="sidebar-activity-section">
+          <div className="section-header-row">
+            <span className="section-icon">⚡</span>
+            <h3 className="section-heading">Recent Activity</h3>
+            <span className="section-counter">{recentActivity.length}</span>
+          </div>
+          {recentActivity.length === 0 ? (
+            <div className="empty-state-card">No verified actions logged yet.</div>
+          ) : (
+            <ul className="sidebar-list">
+              {recentActivity.slice(0, 6).map((activity, idx) => (
+                <li key={idx} className="sidebar-card activity-item-card">
+                  <span className="activity-dot" />
+                  <span className="activity-label">{activity}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+
+        {/* Real Backend Verification Badge */}
+        <div className="sidebar-footer-note">
+          <span>Qdrant Cloud & FastEmbed Synchronized</span>
+        </div>
       </div>
     </aside>
   );
