@@ -70,7 +70,10 @@ export class SageApiService {
       const data = await res.json().catch(() => null);
 
       if (!res.ok) {
-        const errorMsg = data?.error || data?.message || `Server returned ${res.status}`;
+        if (data && typeof data === 'object' && ('response' in data || 'success' in data)) {
+          return data as OrchestrationApiResponse;
+        }
+        const errorMsg = data?.response || data?.error || data?.message || `Server returned ${res.status}`;
         if (res.status === 401) {
           throw new Error('Unauthorized request. Ensure SAGE_DEMO_MODE=true is enabled.');
         }

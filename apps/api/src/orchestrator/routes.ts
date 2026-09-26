@@ -48,7 +48,7 @@ export async function orchestratorRoutes(
         ...parsed.data,
         request: requestText,
       });
-      return reply.code(result.success ? 200 : (result.requiresConfirmation ? 200 : 400)).send(result);
+      return reply.code(200).send(result);
     } catch (error) {
       request.log.error(error);
       return reply.code(500).send({
