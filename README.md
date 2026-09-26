@@ -6,6 +6,15 @@ An autonomous Personal Context & Action Agent combining ambient wearable voice (
 
 ---
 
+## 🌐 Live Public Website
+👉 **`https://translation-summary-intent-draft.trycloudflare.com`**
+
+- **Zero Client Setup**: A judge or user can open the single public URL and immediately experience the full SAGE Command Center.
+- **Single Public Origin**: The web UI and all API endpoints (`/orchestrator/*`, `/demo/*`, `/omi/*`, `/tasks/*`, `/health`) are served from the same unified domain.
+- **Live Vector Memory & Actions**: Backed by persistent Qdrant Cloud vector storage, FastEmbed embeddings (`BAAI/bge-small-en-v1.5`), and verified action execution.
+
+---
+
 ## Table of Contents
 1. [Overview](#overview)
 2. [Problem](#problem)
@@ -14,19 +23,19 @@ An autonomous Personal Context & Action Agent combining ambient wearable voice (
 5. [System Architecture](#system-architecture)
 6. [Architecture Diagram](#architecture-diagram)
 7. [Technology Stack](#technology-stack)
-8. [Omi Integration](#omi-integration)
-9. [Qdrant Vector Memory Integration](#qdrant-vector-memory-integration)
-10. [FastEmbed Microservice Integration](#fastembed-microservice-integration)
-11. [Lyzr Agent & Tool Integration](#lyzr-agent--tool-integration)
-12. [Memory Architecture](#memory-architecture)
-13. [Task & Action Architecture](#task--action-architecture)
-14. [Safety & Confirmation Gates](#safety--confirmation-gates)
-15. [User-Facing Command Center](#user-facing-command-center)
-16. [The Agentic Loop Explained](#the-agentic-loop-explained)
-17. [Local Setup](#local-setup)
-18. [Environment Variables](#environment-variables)
-19. [How to Start Services](#how-to-start-services)
-20. [Browser Command Center URL](#browser-command-center-url)
+8. [Single Public Website Architecture](#single-public-website-architecture)
+9. [Omi Integration](#omi-integration)
+10. [Qdrant Vector Memory Integration](#qdrant-vector-memory-integration)
+11. [FastEmbed Microservice Integration](#fastembed-microservice-integration)
+12. [Lyzr Agent & Tool Integration](#lyzr-agent--tool-integration)
+13. [Memory Architecture](#memory-architecture)
+14. [Task & Action Architecture](#task--action-architecture)
+15. [Safety & Confirmation Gates](#safety--confirmation-gates)
+16. [User-Facing Command Center](#user-facing-command-center)
+17. [The Agentic Loop Explained](#the-agentic-loop-explained)
+18. [Local Development Setup](#local-development-setup)
+19. [Production Deployment (Render Blueprint)](#production-deployment-render-blueprint)
+20. [Environment Variables](#environment-variables)
 21. [Example Commands & Prompts](#example-commands--prompts)
 22. [Testing & Verification](#testing--verification)
 23. [4-to-5 Minute Hackathon Demo Workflow](#4-to-5-minute-hackathon-demo-workflow)
@@ -149,6 +158,31 @@ The execution path moves through 8 well-defined states:
 
 ---
 
+## Single Public Website Architecture
+
+To ensure judges can test SAGE without running local background processes, the production deployment integrates both frontend and backend under **one public origin**:
+
+```text
+Browser
+   │
+   ▼
+ONE PUBLIC SAGE URL (HTTPS)
+   │
+   ├── SAGE Web Command Center (Static Assets + SPA Fallback)
+   │
+   └── API Endpoints (/orchestrator/*, /demo/*, /tasks/*, /health)
+           │
+           ├── Qdrant Cloud (384-dim Vector Storage)
+           ├── FastEmbed Microservice (Local / Private Network)
+           └── Lyzr Cloud (Agent Inference & Fallback)
+```
+
+- **Unified Origin**: No CORS friction; the browser makes relative requests (`/orchestrator/run`, `/health`, `/demo/context`, `/demo/reset`) directly to the host origin.
+- **Route Precedence**: Fastify routes all API endpoints first. Any non-API paths serve the compiled React SPA `index.html`.
+- **No Leaked Internal URLs**: Production client errors never leak localhost or internal hostnames.
+
+---
+
 ## Omi Integration
 
 SAGE provides full native support for the **Omi Wearable**:
@@ -183,10 +217,10 @@ Persistent vector storage is handled via Qdrant Cloud or local instances:
 ## FastEmbed Microservice Integration
 
 Vector embeddings are generated locally using FastEmbed:
-- **Service Port**: `http://127.0.0.1:8000`
+- **Service Port**: `http://127.0.0.1:8000` (or dynamic platform `$PORT`)
 - **Model**: `BAAI/bge-small-en-v1.5`
 - **Prefix Support**: Prepends `"passage: "` for indexing and `"query: "` for retrieval queries.
-- **Self-Hosted & Private**: Runs completely on-device without cloud embedding API dependencies or token fees.
+- **Self-Hosted & Private**: Runs completely on-device/private network without cloud embedding API dependencies or token fees.
 
 ---
 
@@ -218,7 +252,7 @@ SAGE categorizes long-term records into explicit types:
 
 ## Task & Action Architecture
 
-Tasks are managed by the unified [TaskService](file:///Users/apple/Documents/SAGE/apps/api/src/tasks/service.ts):
+Tasks are managed by the unified TaskService:
 - Persisted in Qdrant with `type: "task"` and `status: "pending" | "completed" | "cancelled"`.
 - Support due dates, natural language titles, and semantic lookup.
 - **Task Reference Rule**: Pending tasks are only injected into context when the user explicitly asks about tasks, refers to a task by name, or requests task planning. Unrelated requests (e.g., booking appointments) suppress task inclusion.
@@ -259,12 +293,12 @@ LISTEN ──► REMEMBER ──► REASON ──► ACT ──► VERIFY
 
 ---
 
-## Local Setup
+## Local Development Setup
 
 ### Prerequisites
 - Node.js $\ge 18$
 - Python $\ge 3.10$
-- Qdrant Cloud cluster or local Docker container (`docker run -p 6333:6333 qdrant/qdrant`)
+- Qdrant Cloud cluster or local Docker container
 
 ### 1. Clone the Repository
 ```bash
@@ -278,29 +312,43 @@ cd services/embeddings
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
+python server.py
 ```
 
-### 3. Setup Backend API
+### 3. Setup Backend API & Web Frontend
 ```bash
-cd ../../apps/api
+# Terminal 2: Start API (serves static UI or API routes)
+cd apps/api
 npm install
-cp ../../.env.example .env
+npm run dev
+
+# Terminal 3: Start Web Dev Server (optional for HMR during development)
+cd apps/web
+npm install
+npm run dev
 ```
 
-### 4. Setup Frontend Web App
-```bash
-cd ../web
-npm install
-```
+---
+
+## Production Deployment (Render Blueprint)
+
+The repository includes a ready-to-use [`render.yaml`](file:///Users/apple/Documents/SAGE/render.yaml) Blueprint:
+
+1. **Push to GitHub**: Connect your GitHub repository `yashasgowdacr/sage-personal-context-agent`.
+2. **New Blueprint Instance**: On Render, select **New + $\rightarrow$ Blueprint**.
+3. **Automatic Provisioning**:
+   - `sage-app`: Builds web frontend (`apps/web/dist`) and API server (`apps/api/dist`), exposing a single unified public URL.
+   - `sage-embeddings`: Builds Python FastEmbed microservice.
+4. **Environment Secrets**: Input `QDRANT_URL`, `QDRANT_API_KEY`, and `LYZR_API_KEY` in the Render dashboard.
 
 ---
 
 ## Environment Variables
 
-Configure `apps/api/.env`:
+Configure in your deployment platform or `apps/api/.env`:
 
 ```env
-NODE_ENV=development
+NODE_ENV=production
 PORT=3001
 HOST=0.0.0.0
 
@@ -313,7 +361,7 @@ LYZR_API_KEY=your-lyzr-api-key
 LYZR_AGENT_ID=your-lyzr-agent-id
 LYZR_AGENT_URL=https://agent-prod.studio.lyzr.ai/v3/inference/chat/
 
-# Local FastEmbed Microservice
+# FastEmbed Microservice (Internal or localhost)
 EMBEDDING_SERVICE_URL=http://127.0.0.1:8000
 
 # SAGE Internal Tool Security Key
@@ -322,36 +370,6 @@ SAGE_TOOL_API_KEY=your-secure-internal-tool-key
 # Demo Mode (Predictable deterministic demo user state)
 SAGE_DEMO_MODE=true
 ```
-
----
-
-## How to Start Services
-
-### Terminal 1: FastEmbed Microservice (Port 8000)
-```bash
-cd services/embeddings
-source .venv/bin/activate
-python -m uvicorn server:app --host 127.0.0.1 --port 8000
-```
-
-### Terminal 2: SAGE API Backend (Port 3001)
-```bash
-cd apps/api
-npm run dev
-```
-
-### Terminal 3: SAGE Command Center Web App (Port 3000)
-```bash
-cd apps/web
-npm run dev
-```
-
----
-
-## Browser Command Center URL
-
-Open your web browser at:
-👉 **`http://localhost:3000`**
 
 ---
 
@@ -415,7 +433,7 @@ npm run build
 
 ## 4-to-5 Minute Hackathon Demo Workflow
 
-Follow this live demo sequence in the Command Center (`http://localhost:3000`):
+Follow this live demo sequence in the Command Center (`https://translation-summary-intent-draft.trycloudflare.com` or local `http://localhost:3001`):
 
 1. **Introduction (0:00–0:30)**: Introduce SAGE: *"Instead of treating every conversation as a blank slate, SAGE builds personal context and uses it to act."*
 2. **Teach Personal Preference (0:30–1:15)**:
@@ -443,7 +461,7 @@ Follow this live demo sequence in the Command Center (`http://localhost:3000`):
 ## Known Non-Blocking Limitations
 
 1. **Lyzr Cloud Free-Tier Inference Credits (HTTP 402)**: The Lyzr Studio free-tier credits for the test account are exhausted. All OpenAPI tool definitions and contracts remain 100% compliant, and SAGE seamlessly switches to its deterministic local reasoner fallback with zero downtime.
-2. **Local Python FastEmbed Daemon**: Requires running Python uvicorn microservice on port 8000 for local vector embedding generation.
+2. **Local Python FastEmbed Daemon**: Requires running Python microservice for local vector embedding generation.
 3. **Action Tracker Ephemerality**: The rolling 10-turn recent action log is stored in-memory in the API process and resets upon server restart (long-term memories and tasks are persistently preserved in Qdrant).
 
 ---

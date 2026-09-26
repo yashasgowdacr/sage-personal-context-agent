@@ -1,0 +1,47 @@
+services:
+  # 1. Public SAGE Web Command Center & API Service
+  - type: web
+    name: sage-app
+    runtime: node
+    plan: free
+    region: oregon
+    buildCommand: npm --prefix apps/web install && npm --prefix apps/web run build && npm --prefix apps/api install && npm --prefix apps/api run build
+    startCommand: cd apps/api && npm start
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: HOST
+        value: 0.0.0.0
+      - key: SAGE_DEMO_MODE
+        value: "true"
+      - key: EMBEDDING_SERVICE_URL
+        fromService:
+          type: web
+          name: sage-embeddings
+          property: host
+      - key: QDRANT_URL
+        sync: false
+      - key: QDRANT_API_KEY
+        sync: false
+      - key: LYZR_API_KEY
+        sync: false
+      - key: LYZR_AGENT_ID
+        sync: false
+      - key: LYZR_AGENT_URL
+        value: https://agent-prod.studio.lyzr.ai/v3/inference/chat/
+      - key: SAGE_TOOL_API_KEY
+        sync: false
+
+  # 2. FastEmbed Embedding Microservice (BAAI/bge-small-en-v1.5)
+  - type: web
+    name: sage-embeddings
+    runtime: python
+    plan: free
+    region: oregon
+    buildCommand: pip install -r services/embeddings/requirements.txt
+    startCommand: cd services/embeddings && python server.py
+    healthCheckPath: /health
+    envVars:
+      - key: PORT
+        value: 8000

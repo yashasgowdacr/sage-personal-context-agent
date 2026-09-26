@@ -1,8 +1,10 @@
 import "dotenv/config";
-import { readFileSync } from "node:fs";
-import { join } from "node:path";
+import { readFileSync, existsSync } from "node:fs";
+import { join, dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import Fastify from "fastify";
 import cors from "@fastify/cors";
+import fastifyStatic from "@fastify/static";
 import { memoryRoutes } from "./memory/routes.js";
 import { agentRoutes } from "./agent/routes.js";
 import { orchestratorRoutes } from "./orchestrator/routes.js";
@@ -48,6 +50,7 @@ app.get("/openapi.yaml", async (_request, reply) => {
     return reply.status(500).send({ error: "Failed to load openapi.yaml" });
   }
 });
+
 const reasoner = new LyzrReasonerAdapter();
 const orchestrator = new SageOrchestrator({ reasoner });
 const omiAdapter = new OmiAdapter(orchestrator);
@@ -59,7 +62,44 @@ await app.register(orchestratorRoutes, { orchestrator });
 await registerOmiRoutes(app, omiAdapter);
 await app.register(demoRoutes);
 
+// Find built frontend dist path if available
+const currentDir = dirname(fileURLToPath(import.meta.url));
+const possibleDistPaths = [
+  join(process.cwd(), "../web/dist"),
+  join(process.cwd(), "apps/web/dist"),
+  resolve(currentDir, "../../../web/dist"),
+  resolve(currentDir, "../../web/dist"),
+  resolve(currentDir, "../web/dist"),
+];
+const webDistPath = possibleDistPaths.find((p) => existsSync(p) && existsSync(join(p, "index.html")));
 
+if (webDistPath) {
+  await app.register(fastifyStatic, {
+    root: webDistPath,
+    prefix: "/",
+    wildcard: false,
+  });
+
+  app.setNotFoundHandler(async (request, reply) => {
+    const url = request.raw.url || "";
+    if (
+      url.startsWith("/api") ||
+      url.startsWith("/orchestrator") ||
+      url.startsWith("/demo") ||
+      url.startsWith("/omi") ||
+      url.startsWith("/tasks") ||
+      url.startsWith("/memory") ||
+      url.startsWith("/agent") ||
+      url.startsWith("/health") ||
+      url.startsWith("/openapi")
+    ) {
+      return reply.status(404).send({ error: "API route not found", path: url });
+    }
+    return reply.sendFile("index.html");
+  });
+
+  console.log(`Serving SAGE Web Command Center from ${webDistPath}`);
+}
 
 const PORT = Number(process.env.PORT) || 3001;
 const HOST = process.env.HOST || "0.0.0.0";

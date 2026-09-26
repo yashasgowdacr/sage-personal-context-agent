@@ -88,7 +88,7 @@ export class SageApiService {
         error.message?.includes('NetworkError') ||
         error.message?.includes('ECONNREFUSED')
       ) {
-        throw new Error('SAGE is offline. Make sure the SAGE API is running on localhost:3001.');
+        throw new Error('SAGE is temporarily unavailable. Please try again.');
       }
       if (
         error.message?.includes('memory') ||
