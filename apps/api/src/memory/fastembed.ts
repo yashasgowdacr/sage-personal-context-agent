@@ -1,7 +1,26 @@
 import type { EmbeddingProvider, EmbeddingInputType } from "./embeddings.js";
 
-const EMBEDDING_SERVICE_URL =
-  process.env.EMBEDDING_SERVICE_URL || "http://127.0.0.1:8000";
+function getEmbeddingServiceUrl(): string {
+  if (process.env.EMBEDDING_SERVICE_URL) {
+    let url = process.env.EMBEDDING_SERVICE_URL.trim();
+    if (!url.startsWith("http://") && !url.startsWith("https://")) {
+      url = `http://${url}`;
+    }
+    return url.replace(/\/+$/, "");
+  }
+
+  if (process.env.EMBEDDING_SERVICE_HOST) {
+    const host = process.env.EMBEDDING_SERVICE_HOST.trim();
+    const port = process.env.EMBEDDING_SERVICE_PORT?.trim() || "8000";
+    const prefix = host.startsWith("http://") || host.startsWith("https://") ? "" : "http://";
+    return `${prefix}${host}:${port}`.replace(/\/+$/, "");
+  }
+
+  return "http://127.0.0.1:8000";
+}
+
+const EMBEDDING_SERVICE_URL = getEmbeddingServiceUrl();
+
 
 const DIMENSION = 384;
 

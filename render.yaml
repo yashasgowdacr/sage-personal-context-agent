@@ -15,11 +15,16 @@ services:
         value: 0.0.0.0
       - key: SAGE_DEMO_MODE
         value: "true"
-      - key: EMBEDDING_SERVICE_URL
+      - key: EMBEDDING_SERVICE_HOST
         fromService:
           type: web
           name: sage-embeddings
           property: host
+      - key: EMBEDDING_SERVICE_PORT
+        fromService:
+          type: web
+          name: sage-embeddings
+          property: port
       - key: QDRANT_URL
         sync: false
       - key: QDRANT_API_KEY
@@ -40,7 +45,7 @@ services:
     plan: free
     region: oregon
     buildCommand: pip install -r services/embeddings/requirements.txt
-    startCommand: cd services/embeddings && python server.py
+    startCommand: cd services/embeddings && python -m uvicorn server:app --host 0.0.0.0 --port $PORT
     healthCheckPath: /health
     envVars:
       - key: PORT
