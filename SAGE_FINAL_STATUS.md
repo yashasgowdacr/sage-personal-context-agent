@@ -4,7 +4,7 @@
 **SAGE — Personal Context & Action Agent**  
 *Tagline:* Listen. Remember. Reason. Act.  
 *Repository:* [https://github.com/yashasgowdacr/sage-personal-context-agent](https://github.com/yashasgowdacr/sage-personal-context-agent)  
-*Live Public Website:* [https://translation-summary-intent-draft.trycloudflare.com](https://translation-summary-intent-draft.trycloudflare.com)
+*Live Public Website:* [https://sage-personal-context-agent.onrender.com](https://sage-personal-context-agent.onrender.com)
 
 ---
 
@@ -20,7 +20,7 @@ Browser
    │
    ▼
 ONE PUBLIC SAGE URL (HTTPS)
-https://translation-summary-intent-draft.trycloudflare.com
+https://sage-personal-context-agent.onrender.com
    │
    ├── SAGE Web Command Center (Static Assets & SPA Fallback)
    │
@@ -40,7 +40,7 @@ https://translation-summary-intent-draft.trycloudflare.com
 ## Completed & Verified Features
 
 1. **Single Public URL Deployment**
-   - Deployed and live over secure HTTPS at `https://translation-summary-intent-draft.trycloudflare.com`.
+   - Deployed and live over secure HTTPS at `https://sage-personal-context-agent.onrender.com`.
    - Unified origin serves the React Command Center and handles all API traffic transparently.
    - 1-click cloud blueprint provided via [`render.yaml`](file:///Users/apple/Documents/SAGE/render.yaml).
 
@@ -106,7 +106,7 @@ All test suites executed and passed with zero errors:
 ## Production & Local Commands
 
 ### 1. Public Website URL (Zero Installation Required)
-👉 **`https://translation-summary-intent-draft.trycloudflare.com`**
+👉 **`https://sage-personal-context-agent.onrender.com`**
 
 ### 2. Local Development (If running locally)
 ```bash
@@ -156,7 +156,7 @@ cd apps/api && npm run dev
 
 ## Final Submission Checklist
 
-- [x] Public URL opens (`https://translation-summary-intent-draft.trycloudflare.com`)
+- [x] Public URL opens (`https://sage-personal-context-agent.onrender.com`)
 - [x] SAGE UI loads over public HTTPS
 - [x] API works through public origin
 - [x] Health endpoint works

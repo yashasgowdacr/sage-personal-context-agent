@@ -7,7 +7,7 @@ An autonomous Personal Context & Action Agent combining ambient wearable voice (
 ---
 
 ## 🌐 Live Public Website
-👉 **`https://translation-summary-intent-draft.trycloudflare.com`**
+👉 **`https://sage-personal-context-agent.onrender.com`**
 
 - **Zero Client Setup**: A judge or user can open the single public URL and immediately experience the full SAGE Command Center.
 - **Single Public Origin**: The web UI and all API endpoints (`/orchestrator/*`, `/demo/*`, `/omi/*`, `/tasks/*`, `/health`) are served from the same unified domain.
@@ -433,7 +433,7 @@ npm run build
 
 ## 4-to-5 Minute Hackathon Demo Workflow
 
-Follow this live demo sequence in the Command Center (`https://translation-summary-intent-draft.trycloudflare.com` or local `http://localhost:3001`):
+Follow this live demo sequence in the Command Center (`https://sage-personal-context-agent.onrender.com` or local `http://localhost:3001`):
 
 1. **Introduction (0:00–0:30)**: Introduce SAGE: *"Instead of treating every conversation as a blank slate, SAGE builds personal context and uses it to act."*
 2. **Teach Personal Preference (0:30–1:15)**:

@@ -7,8 +7,8 @@
   },
   "servers": [
     {
-      "url": "https://xml-our-sees-wind.trycloudflare.com",
-      "description": "SAGE Live Tunnel API"
+      "url": "https://sage-personal-context-agent.onrender.com",
+      "description": "SAGE Production Cloud API"
     }
   ],
   "paths": {

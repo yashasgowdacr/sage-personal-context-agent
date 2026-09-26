@@ -4,8 +4,8 @@ info:
   version: 1.1.0
   description: Persistent semantic memory and task action management service for SAGE AI agents.
 servers:
-  - url: https://xml-our-sees-wind.trycloudflare.com
-    description: SAGE Live Tunnel API
+  - url: https://sage-personal-context-agent.onrender.com
+    description: SAGE Production Cloud API
 paths:
   /memory:
     post:
