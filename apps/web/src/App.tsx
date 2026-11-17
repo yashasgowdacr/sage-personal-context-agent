@@ -10,20 +10,23 @@ import type {
   ContextMemoryItem,
   ContextTaskItem,
   ContextUsedItem,
+  ConversationSummary,
 } from './types/sage';
 
 export const App: React.FC = () => {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [agentStatus, setAgentStatus] = useState<AgentStatusType>('offline');
-  const [isResetting, setIsResetting] = useState(false);
+  const [authenticated, setAuthenticated] = useState(false);
+  const [username, setUsername] = useState('');
+  const [loginError, setLoginError] = useState('');
   const [isProcessingAction, setIsProcessingAction] = useState(false);
 
   // Live Personal Context State from real backend
   const [memories, setMemories] = useState<ContextMemoryItem[]>([]);
   const [tasks, setTasks] = useState<ContextTaskItem[]>([]);
-  const [recentActivity, setRecentActivity] = useState<string[]>([]);
   const [isRefreshingContext, setIsRefreshingContext] = useState(false);
+  const [conversations, setConversations] = useState<ConversationSummary[]>([]);
 
   const statusTimerRef = useRef<any>(null);
 
@@ -31,18 +34,18 @@ export const App: React.FC = () => {
   const refreshContext = useCallback(async () => {
     setIsRefreshingContext(true);
     try {
-      const data = await sageApi.fetchDemoContext();
+      const data = await sageApi.fetchContext();
       setMemories(data.memories);
       setTasks(data.tasks);
-      const formattedActions = (data.recentActions || []).map((a: any) =>
-        typeof a === 'string' ? a : a?.action || JSON.stringify(a)
-      );
-      setRecentActivity(formattedActions);
     } catch (err) {
-      console.warn('Failed to refresh demo context:', err);
+      console.warn('Failed to refresh context:', err);
     } finally {
       setIsRefreshingContext(false);
     }
+  }, []);
+
+  const refreshConversations = useCallback(async () => {
+    try { setConversations(await sageApi.listConversations()); } catch { setConversations([]); }
   }, []);
 
   // Health check on mount and interval
@@ -59,8 +62,7 @@ export const App: React.FC = () => {
       }
     };
 
-    checkConnection();
-    refreshContext();
+    sageApi.currentUser().then((ok) => { setAuthenticated(ok); if (ok) { checkConnection(); refreshContext(); refreshConversations(); } });
 
     const interval = setInterval(checkConnection, 10000);
     return () => {
@@ -68,7 +70,12 @@ export const App: React.FC = () => {
       clearInterval(interval);
       if (statusTimerRef.current) clearTimeout(statusTimerRef.current);
     };
-  }, [refreshContext]);
+  }, [refreshContext, refreshConversations]);
+
+  const handleNewChat = () => { sageApi.resetSession(); setMessages([]); };
+  const handleOpenConversation = async (sessionId: string) => {
+    try { sageApi.selectSession(sessionId); setMessages(await sageApi.fetchConversation(sessionId)); } catch { setMessages([]); }
+  };
 
   const handleSendMessage = async (
     text: string,
@@ -154,17 +161,9 @@ export const App: React.FC = () => {
       };
 
       setMessages((prev) => [...prev, sageMessage]);
+      refreshConversations();
 
-      // Set verified action status if verified
-      if (res.actionResult?.verified) {
-        setAgentStatus('verified');
-        if (statusTimerRef.current) clearTimeout(statusTimerRef.current);
-        statusTimerRef.current = setTimeout(() => {
-          setAgentStatus('online');
-        }, 3500);
-      } else {
-        setAgentStatus('online');
-      }
+      setAgentStatus('online');
 
       // Refresh live backend context sidebar
       await refreshContext();
@@ -212,35 +211,29 @@ export const App: React.FC = () => {
     setMessages((prev) => [...prev, cancelMsg]);
   };
 
-  const handleResetDemo = async () => {
-    if (isResetting) return;
-    setIsResetting(true);
-    try {
-      await sageApi.resetDemoState();
-      await refreshContext();
-      const resetNotice: ChatMessage = {
-        id: `reset-${Date.now()}`,
-        role: 'system',
-        content: '🧹 Demo state reset. Qdrant memories and tasks cleared.',
-        timestamp: new Date().toLocaleTimeString([], {
-          hour: '2-digit',
-          minute: '2-digit',
-        }),
-      };
-      setMessages((prev) => [...prev, resetNotice]);
-    } catch (err) {
-      alert(`Could not reset demo: ${(err as Error).message}`);
-    } finally {
-      setIsResetting(false);
-    }
+  const handleLogin = async (event: React.FormEvent) => {
+    event.preventDefault(); setLoginError('');
+    try { await sageApi.login(username); setAuthenticated(true); } catch (err) { setLoginError((err as Error).message); }
   };
+
+  const handleLogout = async () => {
+    await sageApi.logout();
+    setAuthenticated(false);
+    setMessages([]);
+    setMemories([]);
+    setTasks([]);
+    setConversations([]);
+    setUsername('');
+  };
+
+  if (!authenticated) return <main className="login-shell"><div className="login-glow" /><form className="login-card" onSubmit={handleLogin}><div className="login-mark">✧</div><div className="login-eyebrow">PERSONAL CONTEXT AGENT</div><h1>SAGE</h1><p className="login-subtitle">Your private command center for memory, tasks, and action.</p><label>Username<input type="text" value={username} onChange={(e) => setUsername(e.target.value)} placeholder="Enter your username" autoComplete="username" required /></label><button className="login-submit" type="submit">Continue <span>→</span></button>{loginError && <p className="login-error" role="alert">{loginError}</p>}<div className="login-footer">Private workspace · Username access</div></form></main>;
 
   return (
     <div className="sage-app" id="sage-app">
       <Header
         status={agentStatus}
-        onResetDemo={handleResetDemo}
-        isResetting={isResetting}
+        username={username || undefined}
+        onLogout={handleLogout}
       />
 
       <div className="sage-main-layout">
@@ -265,7 +258,9 @@ export const App: React.FC = () => {
         <ContextPanel
           memories={memories}
           tasks={tasks}
-          recentActivity={recentActivity}
+          conversations={conversations}
+          onNewChat={handleNewChat}
+          onOpenConversation={handleOpenConversation}
           onRefresh={refreshContext}
           isRefreshing={isRefreshingContext}
         />

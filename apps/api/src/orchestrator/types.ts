@@ -84,6 +84,8 @@ export interface OrchestrationContext {
   metadata?: Record<string, unknown> | undefined;
   sageContext?: SageContext | undefined;
   formattedContext?: string | undefined;
+  conversationHistory?: Array<{ role: "user" | "assistant"; content: string }> | undefined;
+  conversationSummary?: string | undefined;
 }
 
 export interface ReasoningDecision {

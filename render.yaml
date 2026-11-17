@@ -13,8 +13,6 @@ services:
         value: production
       - key: HOST
         value: 0.0.0.0
-      - key: SAGE_DEMO_MODE
-        value: "true"
       - key: EMBEDDING_SERVICE_HOST
         fromService:
           type: web
@@ -29,14 +27,22 @@ services:
         sync: false
       - key: QDRANT_API_KEY
         sync: false
-      - key: LYZR_API_KEY
+      - key: GROQ_API_KEY
         sync: false
-      - key: LYZR_AGENT_ID
-        sync: false
-      - key: LYZR_AGENT_URL
-        value: https://agent-prod.studio.lyzr.ai/v3/inference/chat/
+      - key: GROQ_MODEL
+        value: openai/gpt-oss-20b
+      - key: GROQ_BASE_URL
+        value: https://api.groq.com/openai/v1
       - key: SAGE_TOOL_API_KEY
         sync: false
+      - key: SAGE_SESSION_SECRET
+        sync: false
+      - key: SAGE_USER_EMAIL
+        sync: false
+      - key: SAGE_USER_PASSWORD
+        sync: false
+      - key: WEB_ORIGIN
+        value: https://sage-personal-context-agent.onrender.com
 
   # 2. FastEmbed Embedding Microservice (BAAI/bge-small-en-v1.5)
   - type: web

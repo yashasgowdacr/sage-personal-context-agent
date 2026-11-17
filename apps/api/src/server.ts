@@ -1,26 +1,45 @@
 import "dotenv/config";
+import dotenv from "dotenv";
 import { readFileSync, existsSync } from "node:fs";
 import { join, dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import Fastify from "fastify";
 import cors from "@fastify/cors";
+import rateLimit from "@fastify/rate-limit";
 import fastifyStatic from "@fastify/static";
 import { memoryRoutes } from "./memory/routes.js";
-import { agentRoutes } from "./agent/routes.js";
 import { orchestratorRoutes } from "./orchestrator/routes.js";
 import { SageOrchestrator } from "./orchestrator/orchestrator.js";
-import { LyzrReasonerAdapter } from "./orchestrator/reasoner.js";
+import { GroqReasonerAdapter } from "./orchestrator/reasoner.js";
 import { OmiAdapter } from "./omi/adapter.js";
 import { registerOmiRoutes } from "./omi/routes.js";
 import { taskRoutes } from "./tasks/routes.js";
-import { demoRoutes } from "./demo/routes.js";
+import { contextRoutes } from "./context/routes.js";
+import { authRoutes } from "./auth/routes.js";
+import { initializeMemoryCollection } from "./memory/init.js";
+import { initializeConversationStore } from "./context/conversation.js";
+
+dotenv.config({ path: resolve(process.cwd(), "../../.env.local") });
 
 const app = Fastify({
   logger: true,
 });
 
+const requiredEnvironment = ["DATABASE_URL", "GROQ_API_KEY", "GROQ_MODEL", "QDRANT_URL", "QDRANT_API_KEY", "SAGE_SESSION_SECRET", "SAGE_TOOL_API_KEY", "WEB_ORIGIN"];
+const missingEnvironment = requiredEnvironment.filter((name) => !process.env[name]?.trim());
+if (missingEnvironment.length > 0) {
+  throw new Error(`Missing required environment variables: ${missingEnvironment.join(", ")}`);
+}
+
 await app.register(cors, {
-  origin: true,
+  origin: process.env.WEB_ORIGIN as string,
+  credentials: true,
+});
+
+await app.register(rateLimit, {
+  max: 100,
+  timeWindow: "1 minute",
+  ban: 2,
 });
 
 app.get("/health", async () => {
@@ -51,16 +70,31 @@ app.get("/openapi.yaml", async (_request, reply) => {
   }
 });
 
-const reasoner = new LyzrReasonerAdapter();
+// Production reasoning is Groq-only. The API does not silently switch to a rule engine.
+const reasoner = new GroqReasonerAdapter();
 const orchestrator = new SageOrchestrator({ reasoner });
 const omiAdapter = new OmiAdapter(orchestrator);
 
 await app.register(memoryRoutes);
-await app.register(agentRoutes);
 await app.register(taskRoutes);
 await app.register(orchestratorRoutes, { orchestrator });
 await registerOmiRoutes(app, omiAdapter);
-await app.register(demoRoutes);
+await app.register(contextRoutes);
+await app.register(authRoutes);
+
+// Ensure Qdrant collection and indices exist
+try {
+  await initializeMemoryCollection();
+} catch (error) {
+  console.warn("Notice: Qdrant memory collection check deferred or failed:", error);
+}
+
+try {
+  await initializeConversationStore();
+} catch (error) {
+  console.error("Conversation database initialization failed:", error);
+  process.exit(1);
+}
 
 // Find built frontend dist path if available
 const currentDir = dirname(fileURLToPath(import.meta.url));
@@ -77,7 +111,7 @@ if (webDistPath) {
   await app.register(fastifyStatic, {
     root: webDistPath,
     prefix: "/",
-    wildcard: false,
+    wildcard: true,
   });
 
   app.setNotFoundHandler(async (request, reply) => {
@@ -85,7 +119,8 @@ if (webDistPath) {
     if (
       url.startsWith("/api") ||
       url.startsWith("/orchestrator") ||
-      url.startsWith("/demo") ||
+      url.startsWith("/context") ||
+      url.startsWith("/conversations") ||
       url.startsWith("/omi") ||
       url.startsWith("/tasks") ||
       url.startsWith("/memory") ||

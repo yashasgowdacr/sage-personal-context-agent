@@ -1,10 +1,12 @@
 import React from 'react';
-import type { ContextMemoryItem, ContextTaskItem } from '../types/sage';
+import type { ContextMemoryItem, ContextTaskItem, ConversationSummary } from '../types/sage';
 
 interface ContextPanelProps {
   memories: ContextMemoryItem[];
   tasks: ContextTaskItem[];
-  recentActivity: string[];
+  conversations: ConversationSummary[];
+  onNewChat: () => void;
+  onOpenConversation: (sessionId: string) => void;
   onRefresh?: () => void;
   isRefreshing?: boolean;
 }
@@ -12,7 +14,9 @@ interface ContextPanelProps {
 export const ContextPanel: React.FC<ContextPanelProps> = ({
   memories,
   tasks,
-  recentActivity,
+  conversations,
+  onNewChat,
+  onOpenConversation,
   onRefresh,
   isRefreshing = false,
 }) => {
@@ -38,6 +42,28 @@ export const ContextPanel: React.FC<ContextPanelProps> = ({
       </div>
 
       <div className="sidebar-scrollable">
+        <section className="sidebar-section conversation-section">
+          <div className="section-header-row">
+            <span className="section-icon">▱</span>
+            <h3 className="section-heading">Recent chats</h3>
+            <button type="button" className="new-chat-button" onClick={onNewChat}>New</button>
+          </div>
+          {conversations.length === 0 ? (
+            <div className="empty-state-card">Your saved chats will appear here.</div>
+          ) : (
+            <ul className="sidebar-list">
+              {conversations.map((conversation) => (
+                <li key={conversation.id}>
+                  <button type="button" className="conversation-card" onClick={() => onOpenConversation(conversation.id)}>
+                    <span className="conversation-title">{conversation.title || 'New conversation'}</span>
+                    <span className="conversation-date">{new Date(conversation.updated_at).toLocaleDateString()}</span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+
         {/* 1. MEMORY SECTION */}
         <section className="sidebar-section" id="sidebar-memory-section">
           <div className="section-header-row">
@@ -97,34 +123,8 @@ export const ContextPanel: React.FC<ContextPanelProps> = ({
           )}
         </section>
 
-        {/* 3. RECENT ACTIVITY SECTION */}
-        <section className="sidebar-section" id="sidebar-activity-section">
-          <div className="section-header-row">
-            <span className="section-icon">⚡</span>
-            <h3 className="section-heading">Recent Activity</h3>
-            <span className="section-counter">{recentActivity.length}</span>
-          </div>
-          {recentActivity.length === 0 ? (
-            <div className="empty-state-card">No verified actions logged yet.</div>
-          ) : (
-            <ul className="sidebar-list">
-              {recentActivity.slice(0, 6).map((activity: any, idx) => (
-                <li key={idx} className="sidebar-card activity-item-card">
-                  <span className="activity-dot" />
-                  <span className="activity-label">
-                    {typeof activity === 'string'
-                      ? activity
-                      : activity?.action || JSON.stringify(activity)}
-                  </span>
-                </li>
-              ))}
-            </ul>
-          )}
-        </section>
-
-        {/* Real Backend Verification Badge */}
         <div className="sidebar-footer-note">
-          <span>Qdrant Cloud & FastEmbed Synchronized</span>
+          <span>Private context sync active</span>
         </div>
       </div>
     </aside>

@@ -12,10 +12,10 @@ interface ChatWindowProps {
 }
 
 const SUGGESTIONS = [
-  'Remember that I study best at night.',
+  'Remember that I focus best in the evening.',
   'What do you remember about me?',
-  'Create a task to finish DBMS tomorrow.',
-  'What should I work on tonight?',
+  'Add “Finish the project brief” to my tasks.',
+  'What should I focus on this evening?',
 ];
 
 export const ChatWindow: React.FC<ChatWindowProps> = ({
@@ -39,17 +39,17 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
           <div className="welcome-badge">
             <span className="welcome-spark">✧</span>
           </div>
-          <h2 className="welcome-title">SAGE Command Center</h2>
+          <p className="welcome-kicker">PERSONAL OPERATIONS</p>
+          <h2 className="welcome-title">A clearer way to move forward.</h2>
           <p className="welcome-tagline">
-            Listen • Remember • Understand Context • Reason • Act • Verify
+            Remember what matters. Act with confidence.
           </p>
           <p className="welcome-desc">
-            Hi, I'm SAGE. I remember your personal context, manage your tasks in Qdrant,
-            and autonomously execute verified actions on your behalf.
+            SAGE keeps your priorities, preferences, and next steps in view—so you can spend less time organizing and more time doing.
           </p>
 
           <div className="suggestions-container">
-            <span className="suggestions-title">Try asking or instructing:</span>
+            <span className="suggestions-title">Start with a request</span>
             <div className="suggestions-grid">
               {SUGGESTIONS.map((text, idx) => (
                 <button

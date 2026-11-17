@@ -22,13 +22,15 @@ const ListTasksInputSchema = z.object({
 
 const CompleteTaskInputSchema = z.object({
   userId: z.string().min(1).optional(),
-  taskId: z.string().min(1),
-});
+  taskId: z.string().min(1).optional(),
+  query: z.string().min(1).optional(),
+}).refine((value) => Boolean(value.taskId || value.query), "taskId or query is required");
 
 const CancelTaskInputSchema = z.object({
   userId: z.string().min(1).optional(),
-  taskId: z.string().min(1),
-});
+  taskId: z.string().min(1).optional(),
+  query: z.string().min(1).optional(),
+}).refine((value) => Boolean(value.taskId || value.query), "taskId or query is required");
 
 export const createTaskTool: SageActionTool = {
   name: "create_task",
@@ -127,7 +129,7 @@ export const completeTaskTool: SageActionTool = {
 
     try {
       const userId = parsed.data.userId ?? ctx.userId;
-      const task = await taskService.completeTask(userId, parsed.data.taskId);
+      const task = await taskService.completeTask(userId, parsed.data.taskId, parsed.data.query);
       if (!task) {
         return {
           success: false,
@@ -173,7 +175,7 @@ export const cancelTaskTool: SageActionTool = {
 
     try {
       const userId = parsed.data.userId ?? ctx.userId;
-      const task = await taskService.cancelTask(userId, parsed.data.taskId);
+      const task = await taskService.cancelTask(userId, parsed.data.taskId, parsed.data.query);
       if (!task) {
         return {
           success: false,

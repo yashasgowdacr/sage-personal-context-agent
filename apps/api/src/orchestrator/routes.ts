@@ -2,6 +2,7 @@ import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { SageOrchestrator } from "./orchestrator.js";
 import { validateToolAuth } from "../auth/tool-auth.js";
+import { recordConversation } from "../context/conversation.js";
 
 const OrchestratorRequestSchema = z
   .object({
@@ -48,6 +49,8 @@ export async function orchestratorRoutes(
         ...parsed.data,
         request: requestText,
       });
+      await recordConversation(parsed.data.userId, result.metadata?.sessionId as string || parsed.data.sessionId || "default", "user", requestText);
+      await recordConversation(parsed.data.userId, result.metadata?.sessionId as string || parsed.data.sessionId || "default", "assistant", result.response);
       return reply.code(200).send(result);
     } catch (error) {
       request.log.error(error);

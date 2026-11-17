@@ -171,7 +171,9 @@ export class TaskService {
   /**
    * Mark a task as completed with user isolation
    */
-  async completeTask(userId: string, taskId: string): Promise<SageTask | null> {
+  async completeTask(userId: string, taskId?: string, query?: string): Promise<SageTask | null> {
+    if (!taskId && query) { const found = await this.findTask(userId, query); taskId = found?.id; }
+    if (!taskId) return null;
     const UUID_REGEX =
       /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
     if (!UUID_REGEX.test(taskId)) {
@@ -220,7 +222,9 @@ export class TaskService {
   /**
    * Mark a task as cancelled with user isolation
    */
-  async cancelTask(userId: string, taskId: string): Promise<SageTask | null> {
+  async cancelTask(userId: string, taskId?: string, query?: string): Promise<SageTask | null> {
+    if (!taskId && query) { const found = await this.findTask(userId, query); taskId = found?.id; }
+    if (!taskId) return null;
     const UUID_REGEX =
       /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
     if (!UUID_REGEX.test(taskId)) {

@@ -145,6 +145,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
 
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const recognitionRef = useRef<any>(null);
+  const keepListeningRef = useRef(false);
 
   // Speech session state refs to avoid duplicate accumulation and state race conditions
   const baseInputRef = useRef<string>('');
@@ -169,6 +170,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
         clearTimeout(processingTimeoutRef.current);
       }
       if (recognitionRef.current) {
+        keepListeningRef.current = false;
         try {
           recognitionRef.current.abort();
         } catch {
@@ -189,6 +191,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
   }, []);
 
   const stopListening = useCallback(() => {
+    keepListeningRef.current = false;
     if (recognitionRef.current) {
       try {
         recognitionRef.current.stop();
@@ -205,6 +208,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
     }
 
     if (voiceState === 'listening') {
+      keepListeningRef.current = false;
       setVoiceState('processing');
       setVoiceNotice('Browser voice input: Processing voice...');
       stopListening();
@@ -216,6 +220,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
     }
 
     // Start fresh recognition session
+    keepListeningRef.current = true;
     const win = window as unknown as IWindow;
     const SpeechRecognitionClass =
       win.SpeechRecognition || win.webkitSpeechRecognition;
@@ -247,7 +252,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
     finalizedIndicesRef.current.clear();
 
     const recognition = new SpeechRecognitionClass();
-    recognition.continuous = false;
+    recognition.continuous = true;
     recognition.interimResults = true;
     recognition.lang = 'en-US';
     recognition.maxAlternatives = 1;
@@ -295,6 +300,13 @@ export const ChatInput: React.FC<ChatInputProps> = ({
     };
 
     recognition.onerror = (event: any) => {
+      const transientError = ['aborted', 'no-speech', 'network', 'audio-capture'].includes(event.error);
+      if (transientError && keepListeningRef.current) {
+        setVoiceNotice(event.error === 'audio-capture'
+          ? 'Microphone is temporarily unavailable. Retrying...'
+          : 'Browser voice input active: Listening...');
+        return;
+      }
       if (event.error !== 'no-speech') {
         if (event.error === 'not-allowed') {
           setVoiceNotice(
@@ -307,12 +319,22 @@ export const ChatInput: React.FC<ChatInputProps> = ({
         setVoiceNotice(null);
       }
       setVoiceState('idle');
+      keepListeningRef.current = false;
       interimTranscriptRef.current = '';
       finalizedIndicesRef.current.clear();
       recognitionRef.current = null;
     };
 
     recognition.onend = () => {
+      if (keepListeningRef.current) {
+        setVoiceNotice('Browser voice input active: Listening...');
+        window.setTimeout(() => {
+          if (keepListeningRef.current && recognitionRef.current === recognition) {
+            try { recognition.start(); } catch { /* browser may already be restarting */ }
+          }
+        }, 150);
+        return;
+      }
       // Safely commit any lingering interim transcript that did not get isFinal
       if (interimTranscriptRef.current) {
         finalTranscriptRef.current = appendFinalTranscript(
@@ -346,6 +368,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
       recognitionRef.current = recognition;
     } catch (err) {
       console.error('Failed to start speech recognition:', err);
+      keepListeningRef.current = false;
       setVoiceState('idle');
       setVoiceNotice('Could not start voice recognition. Please try again.');
     }
@@ -357,6 +380,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
     if (!trimmed || isLoading || disabled) return;
 
     if (recognitionRef.current) {
+      keepListeningRef.current = false;
       try {
         recognitionRef.current.abort();
       } catch {

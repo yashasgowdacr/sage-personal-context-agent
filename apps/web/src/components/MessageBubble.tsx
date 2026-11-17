@@ -1,6 +1,15 @@
 import React from 'react';
 import type { ChatMessage } from '../types/sage';
-import { ActionCard } from './ActionCard';
+
+function renderLine(line: string): React.ReactNode {
+  const parts = line.split(/(\*\*[^*]+\*\*)/g);
+  return parts.map((part, index) => {
+    if (part.startsWith('**') && part.endsWith('**')) {
+      return <strong key={index}>{part.slice(2, -2)}</strong>;
+    }
+    return <React.Fragment key={index}>{part}</React.Fragment>;
+  });
+}
 
 interface MessageBubbleProps {
   message: ChatMessage;
@@ -40,39 +49,15 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
         )}
 
         <div className="bubble-content">
-          {message.content.split('\n').map((line, idx) => (
-            <p key={idx}>{line}</p>
-          ))}
+          {message.content.split('\n').map((line, idx) => {
+            const trimmed = line.trim();
+            if (!trimmed) return <div key={idx} className="message-spacer" />;
+            if (/^[-•]\s/.test(trimmed)) {
+              return <div key={idx} className="message-list-line"><span>•</span>{renderLine(trimmed.replace(/^[-•]\s+/, ''))}</div>;
+            }
+            return <p key={idx}>{renderLine(trimmed)}</p>;
+          })}
         </div>
-
-        {/* MOST IMPORTANT HACKATHON FEATURE: CONTEXT FUSION INDICATOR */}
-        {!isUser && message.contextUsed && message.contextUsed.length > 0 && (
-          <div className="context-fusion-indicator" id="context-fusion-box">
-            <div className="fusion-header">
-              <span className="fusion-icon">🧠</span>
-              <span className="fusion-title">Context used</span>
-            </div>
-            <ul className="fusion-list">
-              {message.contextUsed.map((item, idx) => (
-                <li key={idx} className="fusion-item">
-                  <span className="fusion-bullet">•</span>
-                  <span className="fusion-item-title">{item.title}:</span>
-                  <span className="fusion-item-detail">"{item.detail}"</span>
-                </li>
-              ))}
-            </ul>
-          </div>
-        )}
-
-        {/* Compact Verified Action Card */}
-        {!isUser && message.actionResult && message.actionResult.success && (
-          <ActionCard
-            tool={message.actionResult.tool}
-            success={message.actionResult.success}
-            verified={message.actionResult.verified}
-            data={message.actionResult.data}
-          />
-        )}
 
         {/* Safety Gate Confirmation Card */}
         {message.requiresConfirmation && onConfirmAction && (

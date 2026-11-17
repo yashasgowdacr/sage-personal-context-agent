@@ -3,14 +3,14 @@ import type { AgentStatusType } from '../types/sage';
 
 interface HeaderProps {
   status: AgentStatusType;
-  onResetDemo: () => void;
-  isResetting?: boolean;
+  username?: string;
+  onLogout: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
   status,
-  onResetDemo,
-  isResetting = false,
+  username,
+  onLogout,
 }) => {
   // Format Agent Status badge
   let statusClass = 'status-online';
@@ -43,37 +43,23 @@ export const Header: React.FC<HeaderProps> = ({
               <h1 className="brand-title">SAGE</h1>
               <span className="brand-badge">Command Center</span>
             </div>
-            <p className="brand-subtitle">Personal Context & Action Agent</p>
+            <p className="brand-subtitle">Your private workspace for context and action</p>
           </div>
         </div>
         <div className="brand-tagline">
-          <span>Listen</span> • <span>Remember</span> • <span>Reason</span> • <span>Act</span>
+          <span>Context</span> • <span>Clarity</span> • <span>Momentum</span>
         </div>
       </div>
 
       <div className="header-actions">
+        <div className="header-user">{username || 'User'}</div>
         {/* Agent Status Indicator */}
         <div className={`status-indicator ${statusClass}`} id="agent-status-badge">
           <span className="status-symbol">{statusIcon}</span>
           <span className="status-label">{statusText}</span>
         </div>
+        <button type="button" className="logout-button" onClick={onLogout} title="Log out of this account">Logout</button>
 
-        {/* Demo Reset Button */}
-        <button
-          type="button"
-          className="btn btn-secondary btn-sm"
-          id="btn-reset-demo"
-          onClick={onResetDemo}
-          disabled={isResetting}
-          title="Reset memories, tasks, and actions for clean demo"
-        >
-          {isResetting ? (
-            <span className="btn-spinner" />
-          ) : (
-            <span className="btn-icon">↺</span>
-          )}
-          <span>Reset Demo</span>
-        </button>
       </div>
     </header>
   );

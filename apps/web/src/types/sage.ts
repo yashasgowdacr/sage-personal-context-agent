@@ -37,11 +37,18 @@ export interface ContextTaskItem {
   createdAt?: string;
 }
 
-export interface DemoContextState {
+export interface ContextState {
   userId: string;
   memories: ContextMemoryItem[];
   tasks: ContextTaskItem[];
   recentActions: string[];
+}
+
+export interface ConversationSummary {
+  id: string;
+  title?: string;
+  updated_at: string;
+  message_count: number;
 }
 
 export interface OrchestrationApiResponse {

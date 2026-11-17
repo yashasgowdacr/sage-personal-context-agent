@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { memoryManager } from "../memory/manager.js";
 import { OrchestrationLogger } from "./logger.js";
 import { ActionRegistry } from "./registry.js";
-import { StandardReasoner, type SageReasoner } from "./reasoner.js";
+import type { SageReasoner } from "./reasoner.js";
 import { buildSageContext, actionTracker, DEFAULT_RELEVANCE_THRESHOLD } from "../context/builder.js";
 import { formatContextForReasoner } from "../context/formatter.js";
 import type { SageContext } from "../context/types.js";
@@ -17,6 +17,8 @@ import type {
   ReasoningDecision,
   MemorySearchResult,
 } from "./types.js";
+import { getConversation } from "../context/conversation.js";
+import { groqFinalize } from "../agent/groq.js";
 
 function computeMemoriesUsed(
   decision: ReasoningDecision,
@@ -62,7 +64,8 @@ export class SageOrchestrator {
 
   constructor(options?: { registry?: ActionRegistry; reasoner?: SageReasoner }) {
     this.registry = options?.registry ?? new ActionRegistry();
-    this.reasoner = options?.reasoner ?? new StandardReasoner();
+    if (!options?.reasoner) throw new Error("A Groq reasoner is required");
+    this.reasoner = options.reasoner;
   }
 
   getRegistry(): ActionRegistry {
@@ -136,6 +139,7 @@ export class SageOrchestrator {
       detail: `Input analyzed (${input.request.trim().length} characters)`,
     });
 
+    const conversation = await getConversation(input.userId.trim(), sessionId);
     const context: OrchestrationContext = {
       requestId,
       userId: input.userId.trim(),
@@ -147,6 +151,8 @@ export class SageOrchestrator {
       confirmed: input.confirmed,
       confirmationToken: input.confirmationToken,
       metadata: input.metadata,
+      conversationHistory: conversation.turns,
+      conversationSummary: conversation.summary,
     };
 
     // 2. CONTEXT RETRIEVAL & CONTEXT FUSION
@@ -229,7 +235,7 @@ export class SageOrchestrator {
 
     executionEvents.push({
       stage: "reasoning",
-      label: "🤖 Lyzr reasoning",
+      label: "🤖 Groq reasoning",
       timestamp: new Date().toISOString(),
       status: "completed",
       detail: decision.selectedTool
@@ -608,11 +614,23 @@ export class SageOrchestrator {
     let finalResponse = decision.directResponse;
     if (!finalResponse) {
       if (tool.name === "save_memory") {
-        finalResponse = "I've remembered that for you.";
+        const savedContent = String((decision.selectedTool?.input as { content?: string } | undefined)?.content ?? "").trim();
+        finalResponse = savedContent
+          ? `Got it — I’ll remember that: “${savedContent}”`
+          : "Got it — I’ve saved that to your personal context.";
       } else if (tool.name === "forget_memory") {
         finalResponse = "I have removed that memory as requested.";
       } else if (tool.name === "search_memory") {
-        finalResponse = "Memory search completed.";
+        const results = Array.isArray(executionResult.data)
+          ? executionResult.data
+          : ((executionResult.data as any)?.results ?? []);
+        const memories = [...new Set(results
+          .map((item: any) => item?.memory?.content ?? item?.content)
+          .filter(Boolean)
+          .slice(0, 3))];
+        finalResponse = memories.length > 0
+          ? `I remember: ${memories.join("; ")}`
+          : "I don’t have a matching memory stored yet.";
       } else if (tool.name === "create_task") {
         const t = (executionResult.data as any)?.task;
         finalResponse = `I've added '${t?.title ?? "your task"}' to your tasks${t?.dueAt ? ` for ${t.dueAt}` : ""}.`;
@@ -677,6 +695,7 @@ export class SageOrchestrator {
         finalResponse = `Successfully completed ${tool.name}.`;
       }
     }
+    finalResponse = await groqFinalize(context, tool.name, executionResult);
 
     logger.logState(currentState, { completed: true });
 

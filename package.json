@@ -8,5 +8,9 @@
     "build:api": "npm --prefix apps/api install && npm --prefix apps/api run build",
     "build": "npm --prefix apps/web install && npm --prefix apps/web run build && npm --prefix apps/api install && npm --prefix apps/api run build",
     "start": "cd apps/api && npm start"
+  },
+  "dependencies": {
+    "@neon/config": "^1.14.2",
+    "@neon/env": "^2.1.5"
   }
 }

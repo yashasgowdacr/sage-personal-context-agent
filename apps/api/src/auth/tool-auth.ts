@@ -1,41 +1,11 @@
+import { createHmac, timingSafeEqual } from "node:crypto";
 import type { FastifyReply, FastifyRequest } from "fastify";
-
-export async function requireToolAuth(
-  request: FastifyRequest,
-  reply: FastifyReply,
-) {
-  const configuredKey = process.env.SAGE_TOOL_API_KEY;
-
-  if (!configuredKey) {
-    request.log.error("SAGE_TOOL_API_KEY is not configured");
-    return reply.code(500).send({
-      error: "Tool authentication is not configured",
-    });
-  }
-
-  const suppliedKey =
-    (request.headers["x-sage-tool-key"] as string | undefined) ||
-    (request.headers.authorization?.startsWith("Bearer ")
-      ? request.headers.authorization.slice(7)
-      : undefined) ||
-    (request.query as Record<string, string> | undefined)?.key ||
-    (request.query as Record<string, string> | undefined)?.api_key ||
-    (request.query as Record<string, string> | undefined)?.token;
-
-  if (suppliedKey !== configuredKey) {
-    const isDemoMode = process.env.SAGE_DEMO_MODE === "true" || process.env.NODE_ENV === "development";
-    const bodyUserId = (request.body as { userId?: string } | undefined)?.userId;
-    const queryUserId = (request.query as { userId?: string } | undefined)?.userId;
-    const isDemoUser = bodyUserId === "sage-demo-user" || queryUserId === "sage-demo-user";
-
-    if (isDemoMode && isDemoUser) {
-      return;
-    }
-
-    return reply.code(401).send({
-      error: "Unauthorized",
-    });
-  }
-}
-
+const COOKIE = "sage_session";
+const secret = () => process.env.SAGE_SESSION_SECRET;
+function sign(value: string) { return createHmac("sha256", secret() ?? "").update(value).digest("base64url"); }
+export function createSession(userId: string) { const payload = Buffer.from(JSON.stringify({ sub: userId, exp: Date.now() + 8 * 60 * 60 * 1000 })).toString("base64url"); return `${payload}.${sign(payload)}`; }
+export function readSession(request: FastifyRequest): string | null { const raw = request.headers.cookie?.split(";").map((v) => v.trim()).find((v) => v.startsWith(`${COOKIE}=`))?.slice(COOKIE.length + 1); if (!raw || !secret()) return null; const [payload, signature] = raw.split("."); if (!payload || !signature) return null; const expected = sign(payload); if (signature.length !== expected.length || !timingSafeEqual(Buffer.from(signature), Buffer.from(expected))) return null; try { const data = JSON.parse(Buffer.from(payload, "base64url").toString()) as { sub?: string; exp?: number }; return data.sub && data.exp && data.exp > Date.now() ? data.sub : null; } catch { return null; } }
+export function sessionCookie(token: string) { const secure = process.env.NODE_ENV === "production" ? "; Secure" : ""; return `${COOKIE}=${token}; Path=/; HttpOnly; SameSite=Lax; Max-Age=28800${secure}`; }
+export function clearSessionCookie() { return `${COOKIE}=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0`; }
+export async function requireToolAuth(request: FastifyRequest, reply: FastifyReply) { if (!secret()) return reply.code(500).send({ error: "SAGE_SESSION_SECRET is not configured" }); const sessionUser = readSession(request); const configuredKey = process.env.SAGE_TOOL_API_KEY; const suppliedKey = request.headers["x-sage-tool-key"] as string | undefined; const userId = ((request.body as { userId?: string } | undefined)?.userId ?? (request.query as { userId?: string } | undefined)?.userId)?.trim(); if (!sessionUser && (!configuredKey || suppliedKey !== configuredKey)) return reply.code(401).send({ error: "Authentication required" }); if (sessionUser && userId && userId !== sessionUser) return reply.code(403).send({ error: "User access denied" }); }
 export const validateToolAuth = requireToolAuth;
